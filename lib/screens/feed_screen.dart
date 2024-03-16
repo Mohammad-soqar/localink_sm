@@ -1,14 +1,25 @@
+import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:localink_sm/models/user.dart' as model;
+import 'package:localink_sm/providers/user_provider.dart';
 import 'package:localink_sm/screens/add_post_screen.dart';
+import 'package:localink_sm/screens/chat_screen.dart';
 import 'package:localink_sm/screens/comment_screen.dart';
+import 'package:localink_sm/screens/create_post.dart';
+import 'package:localink_sm/screens/messaging.dart';
+import 'package:localink_sm/screens/permission_test.dart';
+import 'package:localink_sm/screens/test.dart';
 import 'package:localink_sm/screens/verify_email_screen.dart';
 import 'package:localink_sm/utils/colors.dart';
+import 'package:localink_sm/utils/location_utils.dart';
 import 'package:localink_sm/widgets/post_card.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:provider/provider.dart';
 
 class FeedScreen extends StatefulWidget {
   const FeedScreen({Key? key}) : super(key: key);
@@ -19,21 +30,24 @@ class FeedScreen extends StatefulWidget {
 
 class _FeedScreenState extends State<FeedScreen> {
   String? userLocation;
-  late Future<List<String>> followingListFuture;
+  late Stream<List<String>> followingListStream;
+  String selectedOption = '';
+  double userLatitude = 0.0;
+  double userLongitude = 0.0;
 
   @override
   void initState() {
     super.initState();
-    followingListFuture = _getUserFollowingList();
     _determinePosition();
+    followingListStream = _getUserFollowingList();
   }
 
-  Future<List<String>> _getUserFollowingList() async {
+  Stream<List<String>> _getUserFollowingList() async* {
     String userId = FirebaseAuth.instance.currentUser!.uid;
     var userSnap =
         await FirebaseFirestore.instance.collection('users').doc(userId).get();
     var followingList = userSnap.data()!['following'];
-    return List<String>.from(followingList);
+    yield List<String>.from(followingList);
   }
 
   Future<void> _determinePosition() async {
@@ -57,31 +71,152 @@ class _FeedScreenState extends State<FeedScreen> {
       return;
     }
 
-    Position position = await Geolocator.getCurrentPosition();
-    await _getAddressFromLatLng(position.latitude, position.longitude);
-  }
-
-  Future<void> _getAddressFromLatLng(double latitude, double longitude) async {
     try {
-      List<Placemark> placemarks =
-          await placemarkFromCoordinates(latitude, longitude);
-
-      Placemark place = placemarks[0];
-      String address =
-          '${place.street}, ${place.subAdministrativeArea}, ${place.country}';
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.medium,
+      );
+      String address = await LocationUtils.getAddressFromLatLng(
+        position.latitude,
+        position.longitude,
+      );
       setState(() {
         userLocation = address;
+        userLatitude = position.latitude;
+        userLongitude = position.longitude;
       });
     } catch (e) {
-      print(e);
+      print('Error getting current position: $e');
     }
   }
 
+  void _showOptionsPanel(BuildContext context) async {
+    String location;
+
+    try {
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.medium,
+      );
+      location = await LocationUtils.getAddressFromLatLng(
+        position.latitude,
+        position.longitude,
+      );
+    } catch (e) {
+      print('Error getting current position: $e');
+      location = 'Error fetching location';
+    }
+
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return Container(
+          decoration: BoxDecoration(
+            color: darkBackgroundColor, // Change to your darkBackgroundColor
+            boxShadow: [
+              BoxShadow(
+                color: Colors.blue
+                    .withOpacity(0.01), // Change to your highlightColor
+                spreadRadius: 3,
+                blurRadius: 3,
+                offset: Offset(0, 1),
+              ),
+            ],
+          ),
+          width: double.infinity,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                title: RichText(
+                  text: TextSpan(
+                    style: TextStyle(
+                      color: Colors.white, // Set the default color
+                      fontSize: 16,
+                    ),
+                    children: [
+                      TextSpan(
+                        text: location ?? 'Fetching location...',
+                      ),
+                      TextSpan(
+                        text: '  (Current Location)',
+                        style: TextStyle(
+                          color: Colors
+                              .grey, // Set the color for "(Current Location)"
+                          fontSize:
+                              12, // Set the font size for "(Current Location)"
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                onTap: () {
+                  setState(() {
+                    selectedOption = 'option1';
+                  });
+                  Navigator.pop(context);
+                },
+              ),
+              ListTile(
+                title: Text('Global Content'),
+                onTap: () {
+                  setState(() {
+                    selectedOption = 'global';
+                  });
+                  Navigator.pop(context);
+                },
+              ),
+              ListTile(
+                title: Text('Visit Area'),
+                onTap: () {
+                  Navigator.pop(context);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  double calculateDistance(
+    double startLat,
+    double startLon,
+    double endLat,
+    double endLon,
+  ) {
+    const int radiusOfEarth = 6371; // Earth's radius in kilometers
+
+    // Convert degrees to radians
+    double startLatRad = startLat * (3.141592653589793 / 180);
+    double startLonRad = startLon * (3.141592653589793 / 180);
+    double endLatRad = endLat * (3.141592653589793 / 180);
+    double endLonRad = endLon * (3.141592653589793 / 180);
+
+    // Calculate the change in coordinates
+    double latChange = endLatRad - startLatRad;
+    double lonChange = endLonRad - startLonRad;
+
+    // Haversine formula
+    double a = (sin(latChange / 2) * sin(latChange / 2)) +
+        (cos(startLatRad) *
+            cos(endLatRad) *
+            sin(lonChange / 2) *
+            sin(lonChange / 2));
+    double c = 2 * atan2(sqrt(a), sqrt(1 - a));
+
+    // Calculate the distance
+    double distance = radiusOfEarth * c;
+
+    return distance;
+  }
+
+
+
   @override
   Widget build(BuildContext context) {
+    final model.User? user = Provider.of<UserProvider>(context).getUser;
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: darkLBackgroundColor,
+        backgroundColor: darkBackgroundColor,
         title: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -117,7 +252,7 @@ class _FeedScreenState extends State<FeedScreen> {
                   ),
                   onPressed: () => Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (context) => AddPostScreen(),
+                      builder: (context) => PostPage(),
                     ),
                   ),
                 ),
@@ -127,14 +262,53 @@ class _FeedScreenState extends State<FeedScreen> {
                     height: 24,
                     color: Colors.white,
                   ),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => ChatScreen(),
+                    ),
+                  ),
+                ),
+                /* IconButton(
+                  icon: SvgPicture.asset(
+                    'assets/icons/Navigation/messages.svg',
+                    height: 24,
+                    color: Colors.white,
+                  ),
                   onPressed: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => VerifyEmailScreen()),
+                    showDialog(
+                      context: context,
+                      builder: (BuildContext context) {
+                        return FutureBuilder<model.User?>(
+                          future: getCurrentUser(),
+                          builder: (BuildContext context,
+                              AsyncSnapshot<model.User?> snapshot) {
+                            if (snapshot.connectionState ==
+                                ConnectionState.done) {
+                              if (snapshot.hasData && snapshot.data != null) {
+                                // Ensure the user is non-null before navigating
+                                User user = snapshot.data! as User;
+                                Navigator.of(context).pop(); // Close the dialog
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        MessagePage(user: user),
+                                  ),
+                                );
+                                return SizedBox(); // Return an empty widget after navigation
+                              } else {
+                                // Handle the case where no user is found or snapshot contains a null user
+                                Navigator.of(context).pop(); // Close the dialog
+                                return SizedBox(); // Return an empty widget after handling the case
+                              }
+                            }
+                            // Show a loading spinner while waiting for the user data
+                            return CircularProgressIndicator();
+                          },
+                        );
+                      },
                     );
                   },
-                ),
+                ), */
               ],
             ),
           ],
@@ -142,111 +316,135 @@ class _FeedScreenState extends State<FeedScreen> {
       ),
       body: Column(
         children: [
-          Container(
-            margin: const EdgeInsets.all(8.0),
-            padding: const EdgeInsets.symmetric(horizontal: 5.0, vertical: 8.0),
-            decoration: BoxDecoration(
-              border: Border.all(
-                color: highlightColor,
-                width: 2.0,
+          GestureDetector(
+            onTap:
+                userLocation != null ? () => _showOptionsPanel(context) : null,
+            child: Container(
+              margin: const EdgeInsets.all(6.0),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 5.0, vertical: 1.0),
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: highlightColor, // Change to your highlightColor
+                  width: 2.0,
+                ),
+                color:
+                    darkBackgroundColor, // Change to your darkBackgroundColor
+                borderRadius: BorderRadius.circular(15),
+                boxShadow: [
+                  BoxShadow(
+                    color: highlightColor
+                        .withOpacity(0.01), // Change to your highlightColor
+                    spreadRadius: 3,
+                    blurRadius: 3,
+                    offset: Offset(0, 1),
+                  ),
+                ],
               ),
-              color: darkLBackgroundColor, // Background color of the container
-              borderRadius: BorderRadius.circular(20), // Rounded corners
-              boxShadow: [
-                BoxShadow(
-                  color: highlightColor.withOpacity(0.5), // Shadow color
-                  spreadRadius: 3, // Spread radius
-                  blurRadius: 5, // Blur radius
-                  offset: Offset(0, 3), // changes position of shadow
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                IconButton(
-                  icon: SvgPicture.asset(
-                    'assets/icons/locamap.svg',
-                    color: highlightColor,
-                    width: 24,
-                    height: 24,
-                  ),
-                  onPressed: () {},
-                ),
-                SizedBox(width: 8.0), // Spacing between icon and text
-                Expanded(
-                  child: Text(
-                    userLocation ??
-                        'Fetching location...', // Display the location or a placeholder
-                    style: TextStyle(
-                      color: Colors.white, // Text color
-                      fontSize: 16,
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: SvgPicture.asset(
+                      'assets/icons/locamap.svg',
+                      color: highlightColor, // Change to your highlightColor
+                      width: 24,
+                      height: 24,
                     ),
-                    overflow:
-                        TextOverflow.ellipsis, // Prevent text from overflowing
+                    onPressed: () {},
                   ),
-                ),
-                IconButton(
-                  icon: Icon(
-                    Icons.arrow_back, // Check icon at the end
-                    color: highlightColor, // Icon color
+                  SizedBox(width: 8.0),
+                  Expanded(
+                    child: Text(
+                      userLocation ??
+                          'Fetching location...', // Display the location or a placeholder
+                      style: const TextStyle(
+                        color: Colors.white, // Text color
+                        fontSize: 16,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                  onPressed: () {
-                    // Action when check icon is pressed
-                  },
-                ),
-              ],
+                  const Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    color: highlightColor, // Change to your highlightColor
+                  ),
+                ],
+              ),
             ),
           ),
+          // ... (existing code)
           Expanded(
-            child: FutureBuilder<List<String>>(
-              future: followingListFuture,
+            child: StreamBuilder<List<String>>(
+              stream: followingListStream,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(
                     child: CircularProgressIndicator(),
                   );
-                } else if (snapshot.hasError) {
-                  return Center(
-                    child: Text(
-                        'Error fetching following list: ${snapshot.error}'),
-                  );
-                } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return Center(
-                    child: Text('You are not following anyone yet.'),
-                  );
-                } else {
-                  return StreamBuilder(
-                    stream: FirebaseFirestore.instance
-                        .collection('posts')
-                        .where('uid', whereIn: snapshot.data!)
-                        .orderBy('datePublished', descending: true)
-                        .snapshots(),
-                    builder: (context,
-                        AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>>
-                            snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(
-                          child: CircularProgressIndicator(),
-                        );
-                      }
-                      return ListView.builder(
-                        itemCount: snapshot.data?.docs.length ?? 0,
-                        itemBuilder: (context, index) {
-                          if (snapshot.data == null ||
-                              snapshot.data!.docs.isEmpty) {
-                            return const Center(
-                              child: Text('No posts available.'),
-                            );
-                          } else {
-                            return PostCard(
-                              snap: snapshot.data!.docs[index].data(),
-                            );
-                          }
-                        },
-                      );
-                    },
+                }
+
+                List<String> followingList = snapshot.data ?? [];
+                List<String> combinedList = [
+                  ...followingList,
+                  if (user != null) user!.uid
+                ];
+
+                if (combinedList.isEmpty) {
+                  return const Center(
+                    child: Text('No data available.'),
                   );
                 }
+
+                return StreamBuilder(
+                  stream: FirebaseFirestore.instance
+                      .collection('posts')
+                      .snapshots(),
+                  builder: (
+                    context,
+                    AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>>
+                        postSnapshot,
+                  ) {
+                    if (postSnapshot.connectionState ==
+                        ConnectionState.waiting) {
+                      return const Center(
+                        child: CircularProgressIndicator(),
+                      );
+                    }
+
+                    // Filter posts based on user's location (latitude and longitude) only if the option is not "global"
+                    List<DocumentSnapshot<Map<String, dynamic>>> filteredPosts =
+                        postSnapshot.data!.docs.where((post) {
+                      // Check if the selected option is "global"
+                      if (selectedOption == 'global') {
+                        return true; // Return true to include all posts without distance calculations
+                      }
+
+                      double postLatitude = post['latitude'] as double;
+                      double postLongitude = post['longitude'] as double;
+
+                      // Replace with your logic to check the distance
+                      double distance = calculateDistance(
+                        userLatitude,
+                        userLongitude,
+                        postLatitude,
+                        postLongitude,
+                      );
+
+                      // Specify the distance threshold (in kilometers)
+                      double distanceThreshold = 1.0;
+
+                      return distance <= distanceThreshold;
+                    }).toList();
+
+                    return ListView.builder(
+                      cacheExtent: 1000,
+                      itemCount: filteredPosts.length,
+                      itemBuilder: (context, index) => PostCard(
+                        snap: filteredPosts[index].data(),
+                      ),
+                    );
+                  },
+                );
               },
             ),
           ),

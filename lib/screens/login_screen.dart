@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
+import 'package:localink_sm/providers/user_provider.dart';
 import 'package:localink_sm/resources/auth_methods.dart';
 import 'package:localink_sm/responsive/mobile_screen_layout.dart';
 import 'package:localink_sm/responsive/responsive_layout_screen.dart';
@@ -8,6 +9,7 @@ import 'package:localink_sm/screens/signup_screen.dart';
 import 'package:localink_sm/utils/colors.dart';
 import 'package:localink_sm/utils/utils.dart';
 import 'package:localink_sm/widgets/text_field_input.dart';
+import 'package:provider/provider.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -29,16 +31,18 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void loginUser() async {
-
-
-    
     setState(() {
       _isLoading = true;
     });
+
     String res = await AuthMethods().loginUser(
         email: _emailController.text, password: _passwordController.text);
 
+    if (!mounted) return;
+
     if (res == "success") {
+     await Provider.of<UserProvider>(context, listen: false).refreshUser();
+
       Navigator.of(context).pushReplacement(MaterialPageRoute(
           builder: (context) => const ResponsiveLayout(
                 mobileScreenLayout: MobileScreenLayout(),
@@ -47,9 +51,13 @@ class _LoginScreenState extends State<LoginScreen> {
     } else {
       showSnackBar(res, context);
     }
-    setState(() {
-      _isLoading = false;
-    });
+
+    // Again, ensure the widget is still mounted before calling setState
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   void navigatToSignUp() {

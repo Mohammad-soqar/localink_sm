@@ -189,8 +189,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
               child: ElevatedButton(
                 onPressed: _isButtonDisabled ? null : sendVerificationEmail,
                 style: ElevatedButton.styleFrom(
-                  primary: primaryColor,
-                  onPrimary: highlightColor,
+                  foregroundColor: highlightColor, backgroundColor: primaryColor,
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20)),
                   padding: EdgeInsets.symmetric(vertical: 6),
