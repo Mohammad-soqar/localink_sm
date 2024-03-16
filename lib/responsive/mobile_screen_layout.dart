@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
@@ -20,11 +21,30 @@ class _MobileScreenLayoutState extends State<MobileScreenLayout> {
   String username = "";
   int _page = 0;
   late PageController pageController;
+  late Future<String?> userImageFuture; // Initialize the Future
 
   @override
   void initState() {
     super.initState();
     pageController = PageController();
+    userImageFuture = getCurrentUserImage();
+  }
+
+  Future<String?> getCurrentUserImage() async {
+    User? user = FirebaseAuth.instance.currentUser;
+
+    if (user != null) {
+      DocumentSnapshot userSnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      if (userSnapshot.exists) {
+        return userSnapshot['photoUrl'];
+      }
+    }
+
+    return null;
   }
 
   @override
@@ -38,11 +58,6 @@ class _MobileScreenLayoutState extends State<MobileScreenLayout> {
     pageController.jumpToPage(page);
   }
 
-  /* @override
-  void initState() {
-    super.initState();
-  } */
-
   void onPageChanged(int page) {
     setState(() {
       _page = page;
@@ -51,16 +66,6 @@ class _MobileScreenLayoutState extends State<MobileScreenLayout> {
 
   @override
   Widget build(BuildContext context) {
-    /* final model.User? user = Provider.of<UserProvider>(context).getUser;
-    if (user == null) {
-      return const Center(
-          child: CircularProgressIndicator(
-        color: highlightColor,
-      ));
-    }
-    return Scaffold(
-      body: Center(child: Text(user.username)),
-    ); */
     return Scaffold(
       body: PageView(
         children: homeScreenItems,
@@ -68,62 +73,81 @@ class _MobileScreenLayoutState extends State<MobileScreenLayout> {
         controller: pageController,
         onPageChanged: onPageChanged,
       ),
-      bottomNavigationBar: CupertinoTabBar(
-        backgroundColor: darkBackgroundColor,
-        items: [
-          BottomNavigationBarItem(
-              icon: SvgPicture.asset(
-                'assets/icons/home.svg',
-                color: _page == 0 ? highlightColor : primaryColor,
-                width: 24,
-                height: 24,
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          border:
+              Border(top: BorderSide(color: Theme.of(context).dividerColor)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.only(top: 8.0),
+          child: CupertinoTabBar(
+            backgroundColor: darkBackgroundColor,
+            items: [
+              BottomNavigationBarItem(
+                  icon: SvgPicture.asset(
+                    'assets/icons/home.svg',
+                    color: _page == 0 ? highlightColor : primaryColor,
+                    width: 24,
+                    height: 24,
+                  ),
+                  label: '',
+                  backgroundColor: primaryColor),
+              BottomNavigationBarItem(
+                  icon: SvgPicture.asset(
+                    'assets/icons/search.svg',
+                    color: _page == 1 ? highlightColor : primaryColor,
+                    width: 24,
+                    height: 24,
+                  ),
+                  label: '',
+                  backgroundColor: primaryColor),
+              BottomNavigationBarItem(
+                  icon: SvgPicture.asset(
+                    'assets/icons/locamap.svg',
+                    color: _page == 2 ? highlightColor : primaryColor,
+                    width: 24,
+                    height: 24,
+                  ),
+                  label: '',
+                  backgroundColor: primaryColor),
+              BottomNavigationBarItem(
+                  icon: SvgPicture.asset(
+                    'assets/icons/gamification.svg',
+                    color: _page == 3 ? highlightColor : primaryColor,
+                    width: 24,
+                    height: 24,
+                  ),
+                  label: '',
+                  backgroundColor: primaryColor),
+              BottomNavigationBarItem(
+                icon: FutureBuilder(
+                  future: userImageFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: Container(), // Placeholder is an empty container
+                      );
+                    } else if (snapshot.hasError) {
+                      return Icon(Icons.error, color: Colors.red);
+                    } else {
+                      return CircleAvatar(
+                        backgroundImage: CachedNetworkImageProvider(
+                          snapshot.data as String, // Use the fetched image URL
+                        ),
+                        radius: 12,
+                      );
+                    }
+                  },
+                ),
+                label: '',
+                backgroundColor: primaryColor,
               ),
-              label: '',
-              backgroundColor: primaryColor),
-              
-          BottomNavigationBarItem(
-              icon: SvgPicture.asset(
-                'assets/icons/search.svg',
-                color: _page == 1 ? highlightColor : primaryColor,
-                width: 24,
-                height: 24,
-              ),
-              label: '',
-              backgroundColor: primaryColor),
-          BottomNavigationBarItem(
-              icon: SvgPicture.asset(
-                'assets/icons/locamap.svg',
-                color: _page == 2 ? highlightColor : primaryColor,
-                width: 24,
-                height: 24,
-              ),
-              label: '',
-              backgroundColor: primaryColor),
-          BottomNavigationBarItem(
-              icon: SvgPicture.asset(
-                'assets/icons/gamification.svg',
-                color: _page == 3 ? highlightColor : primaryColor,
-                width: 24,
-                height: 24,
-              ),
-              label: '',
-              backgroundColor: primaryColor),
-          BottomNavigationBarItem(
-              icon: Icon(
-                Icons.person,
-                color: _page == 4 ? highlightColor : primaryColor,
-              ),
-              label: '',
-              backgroundColor: primaryColor),
-          /*  BottomNavigationBarItem(
-              icon: Icon(
-                Icons.upload_file,
-                color: _page == 5 ? highlightColor : primaryColor,
-              ),
-              label: '',
-              backgroundColor: primaryColor), */
-        ],
-        onTap: navigationTap,
+            ],
+            onTap: navigationTap,
+          ),
+        ),
       ),
     );
   }
