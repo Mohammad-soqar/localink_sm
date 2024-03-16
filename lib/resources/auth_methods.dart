@@ -10,13 +10,18 @@ class AuthMethods {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  Future<model.User> getUserDetails() async {
-    User currentUser = _auth.currentUser!;
-
-    DocumentSnapshot documentSnapshot =
-        await _firestore.collection('users').doc(currentUser.uid).get();
-
-    return model.User.fromSnap(documentSnapshot);
+   Future<model.User> getUserDetails() async {
+    User? currentUser = _auth.currentUser; // FirebaseAuth's User
+    if (currentUser != null) {
+      DocumentSnapshot documentSnapshot = await _firestore.collection('users').doc(currentUser.uid).get();
+      if (documentSnapshot.exists) {
+        return model.User.fromSnap(documentSnapshot);
+      } else {
+        throw Exception("User does not exist in Firestore");
+      }
+    } else {
+      throw Exception("No current user found");
+    }
   }
 
   //sign up user
@@ -83,8 +88,8 @@ class AuthMethods {
     return res;
   }
 
-  Future<void> signOut() async {
+  Future<void> signOut(BuildContext context) async {
     await _auth.signOut();
-
   }
 }
+ 
