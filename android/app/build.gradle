@@ -27,6 +27,7 @@ apply plugin: 'com.google.gms.google-services'
 
 android {
     namespace "com.company.localink_sm"
+    
     compileSdkVersion flutter.compileSdkVersion
     ndkVersion flutter.ndkVersion
 
