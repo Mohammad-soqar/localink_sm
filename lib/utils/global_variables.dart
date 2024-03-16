@@ -12,7 +12,9 @@ const webScreenSize = 600;
 List<Widget> homeScreenItems = [
   FeedScreen(),
   SearchScreen(),
-  LocaMap(),
+  LocaMap(
+    uid: FirebaseAuth.instance.currentUser!.uid,
+  ),
   UploadARItemScreen(),
   ProfileScreen(
     uid: FirebaseAuth.instance.currentUser!.uid,

@@ -6,6 +6,8 @@ const Color darkLBackgroundColor =
 const Color darkBackgroundColor = Color(
     0xff1e1e1e); // Dark background for web (can be the same or slightly different if needed)
 
+const Color darkerBackgroundColor = Color.fromARGB(255, 19, 19, 19);
+
 const Color primaryColor = Color(0xFFFFFFFF); // White color for text and icons
 const Color secondaryColor = Color(
     0xFF282828); // Assuming secondary color is the same as the background for certain elements
