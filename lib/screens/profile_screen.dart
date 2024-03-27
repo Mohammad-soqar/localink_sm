@@ -1,9 +1,15 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/svg.dart';
+import 'package:localink_sm/models/user.dart' as model;
 import 'package:localink_sm/resources/auth_methods.dart';
 import 'package:localink_sm/resources/firestore_methods.dart';
+import 'package:localink_sm/screens/add_tester_screen.dart';
+import 'package:localink_sm/screens/edit_profile_screen.dart';
 import 'package:localink_sm/screens/login_screen.dart';
+import 'package:localink_sm/screens/chat.dart';
+import 'package:localink_sm/screens/profile_activity_screen.dart';
 import 'package:localink_sm/utils/colors.dart';
 import 'package:localink_sm/utils/utils.dart';
 import 'package:localink_sm/widgets/follow_button.dart';
@@ -19,6 +25,8 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen>
     with SingleTickerProviderStateMixin {
   var userData = {};
+  final String allowedUserId = 'xh8FLottZeNttmgFq5hRmSQYXlp2';
+
   int postLen = 0;
   int followers = 0;
   int following = 0;
@@ -28,12 +36,34 @@ class _ProfileScreenState extends State<ProfileScreen>
   final GlobalKey<ScaffoldState> _scaffoldKey =
       GlobalKey<ScaffoldState>(); // Add scaffold key
   bool isDrawerOpen = false;
+  model.User?
+      user; // Declare a variable to hold the user data at the class level
 
   @override
   void initState() {
     super.initState();
+
     _tabController = TabController(length: 2, vsync: this);
     getData();
+  }
+
+  Future<void> openConversation(model.User user) async {
+    final FireStoreMethods _firestoreMethods = FireStoreMethods();
+    String currentUserId = FirebaseAuth.instance.currentUser!.uid;
+
+    // Get or create a conversation between the current user and the selected user
+    final conversationData = await _firestoreMethods
+        .getOrCreateConversation([currentUserId, user.uid]);
+
+    String conversationId = conversationData['conversationId'];
+
+    // Navigate to the messaging screen
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) =>
+            MessagePage(user: user, conversationId: conversationId),
+      ),
+    );
   }
 
   Future<List<String>> fetchPostMediaUrls() async {
@@ -71,10 +101,11 @@ class _ProfileScreenState extends State<ProfileScreen>
     }
   }
 
-  getData() async {
+  Future<void> getData() async {
     setState(() {
       isLoading = true;
     });
+
     try {
       String userId = FirebaseAuth.instance.currentUser!.uid;
 
@@ -87,6 +118,11 @@ class _ProfileScreenState extends State<ProfileScreen>
           .collection('users')
           .doc(userId)
           .get();
+
+      if (userSnap.exists) {
+        // Assign the fetched user data to the 'user' variable
+        user = model.User.fromSnap(userSnap);
+      }
 
       // Get post length
       var postSnap = await FirebaseFirestore.instance
@@ -123,28 +159,216 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   @override
   Widget build(BuildContext context) {
+    User? currentUser = FirebaseAuth.instance.currentUser;
     return Scaffold(
       key: _scaffoldKey,
       drawer: Drawer(
+        backgroundColor: darkBackgroundColor,
         child: ListView(
           children: <Widget>[
-            DrawerHeader(
-              child: Text('Sidebar Menu'),
-              decoration: BoxDecoration(
-                color: Colors.blue,
+            const  SizedBox(
+              height: 18,
+            ),
+            SvgPicture.asset(
+              'assets/logo-with-name-H.svg',
+              height: 20,
+            ),
+            const SizedBox(
+              height: 24,
+            ),
+            //Settings
+            InkWell(
+              onTap: () {
+                // Your tap callback code
+              },
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(),
+                child: Row(
+                  mainAxisSize:
+                      MainAxisSize.min, // Use as little space as possible
+                  children: <Widget>[
+                    SvgPicture.asset(
+                      'assets/icons/Profile_icons/Settings.svg',
+                      height: 28,
+                      color: primaryColor,
+                    ),
+                    const SizedBox(width: 8), // Spacing between icon and text
+                    Text('Settings & Privacy',
+                        style: TextStyle(color: Colors.white)), // Text style
+                  ],
+                ),
               ),
             ),
-            ListTile(
-              title: Text('Item 1'),
-              onTap: () {
-                // Update the state of the app
-                // ...
-                // Then close the drawer
-                Navigator.pop(context);
-              },
+            const SizedBox(
+              height: 10,
             ),
-            ListTile(
-              title: Text('Sign Out'),
+            //Insights
+            InkWell(
+              onTap: () {
+                // Your tap callback code
+              },
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(),
+                child: Row(
+                  mainAxisSize:
+                      MainAxisSize.min, // Use as little space as possible
+                  children: <Widget>[
+                    SvgPicture.asset(
+                      'assets/icons/Profile_icons/Insights.svg',
+                      height: 28,
+                      color: primaryColor,
+                    ),
+                    const SizedBox(width: 8), // Spacing between icon and text
+                    Text('Insights',
+                        style: TextStyle(color: Colors.white)), // Text style
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(
+              height: 10,
+            ),
+            //Activity
+            InkWell(
+               onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => ActivityPage(),
+                    ),
+                  ),
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(),
+                child: Row(
+                  mainAxisSize:
+                      MainAxisSize.min, // Use as little space as possible
+                  children: <Widget>[
+                     SvgPicture.asset(
+                      'assets/icons/Profile_icons/Activity.svg',
+                      height: 28,
+                      color: primaryColor,
+                    ),// Icon color
+                    const SizedBox(width: 8), // Spacing between icon and text
+                    Text('Your Activity',
+                        style: TextStyle(color: Colors.white)), // Text style
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(
+              height: 10,
+            ),
+            //QR Code
+            InkWell(
+              onTap: () {
+                // Your tap callback code
+              },
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(),
+                child: Row(
+                  mainAxisSize:
+                      MainAxisSize.min, // Use as little space as possible
+                  children: <Widget>[
+                     SvgPicture.asset(
+                      'assets/icons/Profile_icons/QRCode.svg',
+                      height: 28,
+                      color: primaryColor,
+                    ),// Icon color
+                    const SizedBox(width: 8), // Spacing between icon and text
+                    Text('QR Code',
+                        style: TextStyle(color: Colors.white)), // Text style
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(
+              height: 10,
+            ),
+            //Get Verified
+            InkWell(
+              onTap: () {
+                // Your tap callback code
+              },
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(),
+                child: Row(
+                  mainAxisSize:
+                      MainAxisSize.min, // Use as little space as possible
+                  children: <Widget>[
+                     SvgPicture.asset(
+                      'assets/icons/Profile_icons/Verified.svg',
+                      height: 28,
+                      color: primaryColor,
+                    ), // Icon color
+                    const SizedBox(width: 8), // Spacing between icon and text
+                    Text('Get Verified',
+                        style: TextStyle(color: Colors.white)), // Text style
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(
+              height: 10,
+            ),
+            //Close Friends
+            InkWell(
+              onTap: () {
+                // Your tap callback code
+              },
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(),
+                child: Row(
+                  mainAxisSize:
+                      MainAxisSize.min, // Use as little space as possible
+                  children: <Widget>[
+                    SvgPicture.asset(
+                      'assets/icons/Profile_icons/CloseFriends.svg',
+                      height: 28,
+                      color: primaryColor,
+                    ),  // Icon color
+                    const SizedBox(width: 8), // Spacing between icon and text
+                    Text('Close Friends',
+                        style: TextStyle(color: Colors.white)), // Text style
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(
+              height: 10,
+            ),
+            //Archived
+            InkWell(
+              onTap: () {
+                // Your tap callback code
+              },
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(),
+                child: Row(
+                  mainAxisSize:
+                      MainAxisSize.min, // Use as little space as possible
+                  children: <Widget>[
+                     SvgPicture.asset(
+                      'assets/icons/Profile_icons/Archive.svg',
+                      height: 28,
+                      color: primaryColor,
+                    ), // Icon color
+                    const SizedBox(width: 8), // Spacing between icon and text
+                    Text('Archived',
+                        style: TextStyle(color: Colors.white)), // Text style
+                  ],
+                ),
+              ),
+            ),
+              const SizedBox(
+              height: 10,
+            ),
+            //SignOut
+            InkWell(
               onTap: () async {
                 await AuthMethods().signOut(context);
                 // Close the drawer
@@ -157,7 +381,39 @@ class _ProfileScreenState extends State<ProfileScreen>
                   );
                 }
               },
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(),
+                child: Row(
+                  mainAxisSize:
+                      MainAxisSize.min, // Use as little space as possible
+                  children: <Widget>[
+                     SvgPicture.asset(
+                      'assets/icons/Profile_icons/SignOut.svg',
+                      height: 28,
+                      color: primaryColor,
+                    ), // Icon color
+                    const SizedBox(width: 8), // Spacing between icon and text
+                    Text('Signout',
+                        style: TextStyle(color: Colors.white)), // Text style
+                  ],
+                ),
+              ),
             ),
+            
+            currentUser != null && currentUser.uid == allowedUserId
+                ? ListTile(
+                    title: Text('Add Tester'),
+                    onTap: () async {
+                      Navigator.of(context).pop();
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => AddTesterPage()),
+                      );
+                    },
+                  )
+                : Container(),
           ],
         ),
       ),
@@ -237,7 +493,14 @@ class _ProfileScreenState extends State<ProfileScreen>
                                                     .uid ==
                                                 widget.uid
                                             ? TextButton(
-                                                onPressed: () {},
+                                                onPressed: () {
+                                                  Navigator.of(context).push(
+                                                    MaterialPageRoute(
+                                                      builder: (context) =>
+                                                          EditProfilePage(),
+                                                    ),
+                                                  );
+                                                },
                                                 style: TextButton.styleFrom(
                                                   backgroundColor:
                                                       highlightColor,
@@ -388,8 +651,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                                               )
                                             : ElevatedButton(
                                                 onPressed: () {
-                                                  // Implement the functionality for the Message button
-                                                  // This could navigate to a messaging screen
+                                                  if (user != null) {
+                                                    openConversation(user!);
+                                                  } else {}
                                                 },
                                                 style: ElevatedButton.styleFrom(
                                                   backgroundColor:
@@ -454,7 +718,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                             ],
                             controller: _tabController,
                           ),
-                          SizedBox(
+                           SizedBox(
                             height: MediaQuery.of(context).size.height * 0.7,
                             child: TabBarView(
                               controller: _tabController,

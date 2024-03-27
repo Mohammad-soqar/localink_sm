@@ -118,8 +118,7 @@ class _PhotosPageState extends State<PhotosPage> {
   AssetEntity? _selectedImage;
   int currentPage = 0;
   bool isLoading = false;
-  final ScrollController _scrollController =
-      ScrollController(); 
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
@@ -131,7 +130,6 @@ class _PhotosPageState extends State<PhotosPage> {
     if (isLoading) return;
     setState(() => isLoading = true);
 
-    
     final PermissionState ps = await PhotoManager.requestPermissionExtend();
     if (ps != PermissionState.authorized && ps != PermissionState.limited) {
       setState(() => isLoading = false);
@@ -166,7 +164,7 @@ class _PhotosPageState extends State<PhotosPage> {
 
   void _toggleImageSelection(AssetEntity asset) {
     setState(() => _selectedImage = asset);
-   
+
     _scrollController.animateTo(
       0,
       duration: Duration(milliseconds: 300),
@@ -199,9 +197,7 @@ class _PhotosPageState extends State<PhotosPage> {
             pinned: true,
             expandedHeight: MediaQuery.of(context).size.height * 0.48,
             automaticallyImplyLeading: false,
-            backgroundColor:
-                Colors.transparent,
-
+            backgroundColor: Colors.transparent,
             flexibleSpace: FlexibleSpaceBar(
               background: _selectedImage != null
                   ? _buildSelectedImageWidget()
@@ -209,8 +205,7 @@ class _PhotosPageState extends State<PhotosPage> {
             ),
           ),
           SliverPadding(
-            padding:
-                EdgeInsets.only(top: 8.0),
+            padding: EdgeInsets.only(top: 8.0),
             sliver: SliverGrid(
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 3,
@@ -236,9 +231,7 @@ class _PhotosPageState extends State<PhotosPage> {
                                 child: snapshot.hasData
                                     ? Image.memory(snapshot.data!,
                                         fit: BoxFit.cover)
-                                    : Container(
-                                        color: Colors
-                                            .grey[200]),
+                                    : Container(color: Colors.grey[200]),
                               ),
                               if (isSelected)
                                 const Align(
@@ -269,8 +262,9 @@ class _PhotosPageState extends State<PhotosPage> {
               context,
               MaterialPageRoute(
                 builder: (context) => CaptionPage(
-                  selectedImage: _selectedImage,
-                  postTypeName: "photos",
+                  selectedMedia:
+                      _selectedImage, // Assuming _selectedImage is an AssetEntity
+                  mediaType: MediaType.photo,
                 ),
               ),
             );
@@ -294,20 +288,21 @@ class _PhotosPageState extends State<PhotosPage> {
         ),
         backgroundColor: highlightColor,
       ),
-      floatingActionButtonLocation:
-          FloatingActionButtonLocation.miniEndFloat,
+      floatingActionButtonLocation: FloatingActionButtonLocation.miniEndFloat,
     );
   }
 }
 
+enum MediaType { photo, video }
+
 class CaptionPage extends StatefulWidget {
-  final AssetEntity? selectedImage;
-  final String postTypeName;
+  final AssetEntity? selectedMedia;
+  final MediaType mediaType;
 
   const CaptionPage({
     Key? key,
-    required this.selectedImage,
-    required this.postTypeName,
+    required this.selectedMedia,
+    required this.mediaType,
   }) : super(key: key);
 
   @override
@@ -317,10 +312,6 @@ class CaptionPage extends StatefulWidget {
 class _CaptionPageState extends State<CaptionPage> {
   final TextEditingController _descriptionController = TextEditingController();
   bool _isLoading = false;
-
-  File convertXFileToFile(XFile xFile) {
-    return File(xFile.path);
-  }
 
   Future<File?> assetEntityToFile(AssetEntity assetEntity) async {
     final File? file = await assetEntity.file;
@@ -336,18 +327,18 @@ class _CaptionPageState extends State<CaptionPage> {
       final XFile? xFile = await FlutterImageCompress.compressAndGetFile(
         file.absolute.path,
         targetPath,
-        quality: 88, 
-        minWidth: 1000, 
-        minHeight: 1000, 
+        quality: 88,
+        minWidth: 1000,
+        minHeight: 1000,
       );
 
       if (xFile != null) {
         return File(xFile.path);
       }
-      return null; 
+      return null;
     } catch (e) {
       print("Error during image compression: $e");
-      return null; 
+      return null;
     }
   }
 
@@ -357,34 +348,40 @@ class _CaptionPageState extends State<CaptionPage> {
     });
 
     try {
-      File? originalFile = await assetEntityToFile(widget.selectedImage!);
-      File? compressedFile;
+      File? originalFile = await assetEntityToFile(widget.selectedMedia!);
+      File? mediaFile;
 
-      if (originalFile != null) {
-        compressedFile = await compressImage(originalFile);
+      if (widget.mediaType == MediaType.photo && originalFile != null) {
+        mediaFile = await compressImage(originalFile);
+      } else {
+        mediaFile = originalFile; // No compression for videos
       }
 
-      if (compressedFile != null) {
-        File? mediaFile = compressedFile;
+      if (mediaFile != null) {
+        Position position = await Geolocator.getCurrentPosition(
+            desiredAccuracy: LocationAccuracy.high);
+        double latitude = position.latitude;
+        double longitude = position.longitude;
 
-      Position position = await getLatLng();
-      double latitude = position.latitude;
-      double longitude = position.longitude;
+        String res = await FireStoreMethods().createPost(
+          uid,
+          _descriptionController.text,
+          widget.mediaType == MediaType.photo ? "photos" : "videos",
+          mediaFile,
+          latitude,
+          longitude,
+        );
 
-      String res = await FireStoreMethods().createPost(
-        uid,
-        _descriptionController.text,
-        widget.postTypeName,
-        mediaFile,
-        latitude,
-        longitude,
-      );
-
-        Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => FeedScreen()));
-        showSnackBar('Posted!', context);
+        if (res == "success") {
+          Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (context) => FeedScreen()));
+          showSnackBar('Posted!', context);
+        } else {
+          showSnackBar(
+              res, context); // Assuming res contains error message on failure
+        }
       } else {
-        showSnackBar('Image compression failed.', context);
+        showSnackBar('Media processing failed.', context);
       }
     } catch (err) {
       showSnackBar(err.toString(), context);
@@ -404,60 +401,94 @@ class _CaptionPageState extends State<CaptionPage> {
   @override
   Widget build(BuildContext context) {
     final model.User? user = Provider.of<UserProvider>(context).getUser;
+
     return Scaffold(
       appBar: AppBar(
         title: Text('Post'),
       ),
       body: Column(
         children: [
-          // Display the selected image as a thumbnail
-          if (widget.selectedImage != null)
-            Container(
-              padding: const EdgeInsets.all(8.0),
-              child: FutureBuilder<File?>(
-                future: widget.selectedImage!.file,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.done &&
-                      snapshot.data != null) {
-                    return Image.file(
-                      snapshot.data!,
-                      width: 150, // Adjust the size as needed
-                      height: 150,
-                      fit: BoxFit.cover,
+          // Display the selected media as a thumbnail
+          Container(
+            padding: const EdgeInsets.all(8.0),
+            child: FutureBuilder<File?>(
+              future: widget.selectedMedia!.file,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.done &&
+                    snapshot.data != null) {
+                  // For videos, display first frame or placeholder
+                  if (widget.mediaType == MediaType.video) {
+                    return FutureBuilder<Uint8List?>(
+                      future: widget.selectedMedia!.thumbnailData,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.done &&
+                            snapshot.data != null) {
+                          return Image.memory(
+                            snapshot.data!,
+                            width: 150, // Adjust the size as needed
+                            height: 150,
+                            fit: BoxFit.cover,
+                          );
+                        } else {
+                          // Placeholder for video
+                          return Container(
+                            width: 150,
+                            height: 150,
+                            color: Colors.black,
+                            child: Icon(
+                              Icons.play_arrow,
+                              color: Colors.white,
+                              size: 50,
+                            ),
+                          );
+                        }
+                      },
                     );
-                  } else {
-                    // Handle loading state or nullable file
-                    return const CircularProgressIndicator();
                   }
-                },
-              ),
+
+                  // For photos, display the image file
+                  return Image.file(
+                    snapshot.data!,
+                    width: 150, // Adjust the size as needed
+                    height: 150,
+                    fit: BoxFit.cover,
+                  );
+                } else {
+                  // Handle loading state or nullable file
+                  return const CircularProgressIndicator();
+                }
+              },
             ),
-// Caption input field (replace with your actual caption input field)
+          ),
+          // Caption input field
           TextField(
             controller: _descriptionController,
             decoration: const InputDecoration(
               labelText: 'Caption',
-              hintText: 'Write caption',
-              border: InputBorder.none,
+              hintText: 'Write a caption...',
+              border: OutlineInputBorder(),
             ),
+            maxLines: null,
           ),
-          // Other caption-related widgets go here
-          // ...
-          // Post button (replace with your actual Post button)
+          // Post button
           ElevatedButton(
-            onPressed: () => createPost(
-              user!.uid,
-            ),
-            child: Text('Post'),
+            onPressed: _isLoading ? null : () => createPost(user!.uid),
+            child: _isLoading
+                ? CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  )
+                : Text('Post'),
           ),
         ],
       ),
     );
   }
-}
 
-void showSnackBar(String content, BuildContext context) {
-  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(content)));
+  void showSnackBar(String content, BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(content)),
+    );
+  }
 }
 
 void main() {
@@ -467,18 +498,78 @@ void main() {
 }
 
 class VideosPage extends StatefulWidget {
-  const VideosPage({super.key});
+  const VideosPage({Key? key}) : super(key: key);
 
   @override
-  State<VideosPage> createState() => _VideosPageState();
+  _VideosPageState createState() => _VideosPageState();
 }
 
 class _VideosPageState extends State<VideosPage> {
   List<AssetEntity> _galleryVideos = [];
   AssetEntity? _selectedVideo;
+  VideoPlayerController? _videoPlayerController;
 
+  @override
   void initState() {
     super.initState();
+    _fetchVideos();
+  }
+
+  @override
+  void dispose() {
+    _videoPlayerController?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fetchVideos() async {
+    final PermissionState permission =
+        await PhotoManager.requestPermissionExtend();
+    if (permission == PermissionState.authorized ||
+        permission == PermissionState.limited) {
+      final List<AssetPathEntity> albums =
+          await PhotoManager.getAssetPathList(type: RequestType.video);
+      if (albums.isNotEmpty) {
+        final List<AssetEntity> videos =
+            await albums.first.getAssetListPaged(page: 0, size: 100);
+        setState(() {
+          _galleryVideos = videos;
+          if (videos.isNotEmpty) _selectedVideo = videos.first;
+        });
+        _loadSelectedVideo();
+      }
+    } else {
+      PhotoManager.openSetting();
+    }
+  }
+
+  void _loadSelectedVideo() async {
+    if (_selectedVideo == null) return;
+
+    final file = await _selectedVideo!.file;
+    _videoPlayerController?.dispose();
+    _videoPlayerController = VideoPlayerController.file(file!)
+      ..initialize().then((_) {
+        setState(() {});
+        _videoPlayerController!.play();
+      });
+  }
+
+  void _onVideoTap(AssetEntity video) {
+    setState(() {
+      _selectedVideo = video;
+    });
+    _loadSelectedVideo();
+  }
+
+  Widget _buildVideoPlayer() {
+    if (_videoPlayerController == null ||
+        !_videoPlayerController!.value.isInitialized) {
+      return SizedBox.shrink(); // or some placeholder
+    }
+    return AspectRatio(
+      aspectRatio: _videoPlayerController!.value.aspectRatio,
+      child: VideoPlayer(_videoPlayerController!),
+    );
   }
 
   @override
@@ -489,38 +580,11 @@ class _VideosPageState extends State<VideosPage> {
           if (_selectedVideo != null)
             Container(
               height: MediaQuery.of(context).size.height * 0.48,
-              width: double.infinity,
-              padding: EdgeInsets.symmetric(horizontal: 0.0, vertical: 8.0),
-              child: FutureBuilder<File?>(
-                future: _selectedVideo!.file,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.done &&
-                      snapshot.data != null) {
-                    VideoPlayerController controller =
-                        VideoPlayerController.file(snapshot.data!);
-
-                    return FutureBuilder(
-                      future: controller.initialize(),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.done) {
-                          controller.play();
-                          return VideoPlayer(controller);
-                        } else {
-                          return CircularProgressIndicator();
-                        }
-                      },
-                    );
-                  } else {
-                    // Handle loading state or nullable file
-                    return CircularProgressIndicator();
-                  }
-                },
-              ),
+              child: _buildVideoPlayer(),
             ),
-// GridView of videos
           Expanded(
             child: GridView.builder(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 3,
                 crossAxisSpacing: 4.0,
                 mainAxisSpacing: 4.0,
@@ -528,35 +592,23 @@ class _VideosPageState extends State<VideosPage> {
               itemCount: _galleryVideos.length,
               itemBuilder: (context, index) {
                 final asset = _galleryVideos[index];
+                final isSelected = _selectedVideo == asset;
                 return GestureDetector(
-                  onTap: () {},
-                  child: Stack(
-                    children: [
-                      FutureBuilder<File?>(
-                        future: asset.file,
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState ==
-                                  ConnectionState.done &&
-                              snapshot.data != null) {
-                            // You can use a placeholder icon for videos or show the first frame as an image
-                            return const Icon(Icons.videocam,
-                                size: 50, color: Colors.grey);
-                          } else {
-                            // Handle loading state or nullable file
-                            return const CircularProgressIndicator();
-                          }
-                        },
-                      ),
-                      if (_selectedVideo == asset)
-                        const Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: Icon(
-                            Icons.check_circle,
-                            color: highlightColor,
-                          ),
-                        ),
-                    ],
+                  onTap: () => _onVideoTap(asset),
+                  child: Opacity(
+                    opacity: isSelected ? 0.5 : 1,
+                    child: FutureBuilder<Uint8List?>(
+                      future: asset
+                          .thumbnailDataWithSize(const ThumbnailSize(200, 200)),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.done &&
+                            snapshot.data != null) {
+                          return Image.memory(snapshot.data!,
+                              fit: BoxFit.cover);
+                        }
+                        return Center(child: CircularProgressIndicator());
+                      },
+                    ),
                   ),
                 );
               },
@@ -564,6 +616,40 @@ class _VideosPageState extends State<VideosPage> {
           ),
         ],
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          if (_selectedVideo != null) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => CaptionPage(
+                  selectedMedia:
+                      _selectedVideo, // Assuming _selectedVideo is an AssetEntity
+                  mediaType: MediaType.video,
+                ),
+              ),
+            );
+          }
+        },
+        label: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Text(
+              'Next',
+              style: TextStyle(
+                color: Colors.white,
+              ),
+            ),
+            SizedBox(width: 4),
+            Icon(
+              Icons.navigate_next,
+              color: Colors.white,
+            ),
+          ],
+        ),
+        backgroundColor: highlightColor,
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.miniEndFloat,
     );
   }
 }
