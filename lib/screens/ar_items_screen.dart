@@ -1,4 +1,3 @@
-import 'package:ar_flutter_plugin/ar_flutter_plugin.dart';
 import 'package:flutter/material.dart';
 
 class ARViewPage extends StatefulWidget {
@@ -7,8 +6,6 @@ class ARViewPage extends StatefulWidget {
 }
 
 class _ARViewPageState extends State<ARViewPage> {
-  late ArFlutterPlugin arCoreController;
-
   @override
   void initState() {
     super.initState();
@@ -27,15 +24,9 @@ class _ARViewPageState extends State<ARViewPage> {
       appBar: AppBar(
         title: Text('AR View'),
       ),
-      body: ARView(
-        onARViewCreated: _onArViewCreated(arCoreController),
-        
-      ),
+      
     );
   }
 
-   _onArViewCreated(ArFlutterPlugin arCoreController) {
-    this.arCoreController = arCoreController;
-    // Setup AR session options here
-  }
+  
 }
