@@ -1,5 +1,3 @@
-
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class MessageModel {
@@ -8,8 +6,9 @@ class MessageModel {
   final String content;
   final DateTime timestamp;
   final String type;
-    final String? mediaUrl; // URL of the media file
+  final String? mediaUrl; // URL of the media file
   final String? mediaType; // Type of the media (image, video, audio, etc.)
+  final String? sharedPostId; // Identifier for the shared post
 
   MessageModel({
     required this.id,
@@ -19,9 +18,10 @@ class MessageModel {
     required this.type,
     this.mediaUrl,
     this.mediaType,
+    this.sharedPostId, // Initialize in constructor
   });
 
-  // Method to create an instance of MessageModel from Firestore snapshot
+ // Method to create an instance of MessageModel from Firestore snapshot
   static MessageModel fromSnap(DocumentSnapshot snap) {
     var snapshot = snap.data() as Map<String, dynamic>;
     return MessageModel(
@@ -32,16 +32,17 @@ class MessageModel {
       type: snapshot['type'],
       mediaUrl: snapshot['mediaUrl'],
       mediaType: snapshot['mediaType'],
+      sharedPostId: snapshot['sharedPostId'], // Extract from snapshot
     );
   }
 
-    Map<String, dynamic> toJson() => {
+  Map<String, dynamic> toJson() => {
         'senderID': senderID,
         'content': content,
         'timestamp': timestamp,
         'type': type,
         'mediaUrl': mediaUrl,
         'mediaType': mediaType,
-       
+        'sharedPostId': sharedPostId, // Include in serialization
       };
 }
