@@ -59,7 +59,7 @@ class FireStoreMethods {
         'id': postId,
       });
       await _createPostMedia(newPostRef.id, newPostRef, mediaFile);
-      return ('posted successfuly');
+      return ('success');
     } catch (e) {
       return ('Error creating post: $e');
     }
@@ -103,6 +103,7 @@ class FireStoreMethods {
   Future<String> likePost(
     String userId,
     String postId,
+    String postCreatorId,
     List<String>? contentTypes,
   ) async {
     String res = "Some error occurred";
@@ -116,15 +117,63 @@ class FireStoreMethods {
       if (reactionDoc.exists) {
         await reactionsCollection.doc(userId).delete();
         res = "unliked";
+        await _addLikeToHistory(userId, postId, postCreatorId, res);
       } else {
         Reaction reaction = Reaction(id: userId, postId: postId, uid: userId);
         await reactionsCollection.doc(userId).set(reaction.toJson());
         res = "liked";
+        await _addLikeToHistory(userId, postId, postCreatorId, res);
       }
     } catch (err) {
       res = err.toString();
     }
     return res;
+  }
+
+  Future<void> _addLikeToHistory(
+    String userId,
+    String postId,
+    String postCreatorId,
+    String action, // 'liked' or 'unliked'
+  ) async {
+    // Reference to an anchor document inside the 'interactions' subcollection of the user document
+    DocumentReference interactionDocRef = _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('interactions')
+        .doc(
+            'Interaction_data'); // This 'data' doc acts as an anchor for the 'likes' and 'comments' subcollections
+
+    // Direct reference to the 'likes' subcollection under the anchor document
+    CollectionReference likesCollection = interactionDocRef.collection('likes');
+
+    if (action == "liked") {
+      try {
+        // Prepare the like data
+        Map<String, dynamic> likeData = {
+          'userId': userId,
+          'postId': postId,
+          'postCreatorId': postCreatorId,
+          'likedAt': FieldValue.serverTimestamp(),
+        };
+
+        // Add the like data to the 'likes' subcollection
+        await likesCollection.add(likeData);
+      } catch (e) {
+        print("Error adding like to user's interactions: $e");
+      }
+    } else if (action == "unliked") {
+      try {
+        // Find and remove the like from the 'likes' subcollection
+        QuerySnapshot query =
+            await likesCollection.where('postId', isEqualTo: postId).get();
+        for (var doc in query.docs) {
+          await likesCollection.doc(doc.id).delete();
+        }
+      } catch (e) {
+        print("Error removing like from user's interactions: $e");
+      }
+    }
   }
 
   Future<String> postComment(String postId, String text, String uid,
@@ -226,6 +275,8 @@ class FireStoreMethods {
     required String senderId,
     String? messageText,
     Uint8List? mediaBytes,
+    String? sharedPostId, // New parameter for shared post ID
+
     required String messageType,
     List<String>? participantIDs,
   }) async {
@@ -236,6 +287,9 @@ class FireStoreMethods {
       String mediaUrl = await StorageMethods().uploadImageToStorage(
           'message_media/$conversationId', mediaBytes, false);
       content = mediaUrl;
+    } else if (messageType == 'post' && sharedPostId != null) {
+      content =
+          sharedPostId; // Here you could just use the post ID to identify the shared post
     } else {
       throw 'No content to send';
     }
@@ -254,6 +308,7 @@ class FireStoreMethods {
       'content': content,
       'timestamp': FieldValue.serverTimestamp(),
       'type': messageType,
+       if (messageType == 'post') 'sharedPostId': sharedPostId,
     };
 
     await _firestore
@@ -305,7 +360,7 @@ class FireStoreMethods {
           .collection('conversations')
           .doc(conversationId)
           .update({
-        fieldPath: 0, 
+        fieldPath: 0,
       });
     } catch (e) {
       print('Error resetting unread count: $e');
@@ -343,7 +398,7 @@ class FireStoreMethods {
         .get();
 
     if (conversationSnapshot.docs.isEmpty) {
-      return {'conversationId': '', 'lastMessage': 'No messages yet'};
+      return {'conversationId': '', 'lastMessage': 'Start a conversation!!'};
     } else {
       final doc = conversationSnapshot.docs.first;
       return {
