@@ -41,13 +41,16 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
 
     if (res == "success") {
-     await Provider.of<UserProvider>(context, listen: false).refreshUser();
+      await Provider.of<UserProvider>(context, listen: false).refreshUser();
 
-      Navigator.of(context).pushReplacement(MaterialPageRoute(
+      if (mounted) {
+        Navigator.of(context).pushReplacement(MaterialPageRoute(
           builder: (context) => const ResponsiveLayout(
-                mobileScreenLayout: MobileScreenLayout(),
-                webScreenLayout: WebScreenLayout(),
-              )));
+            mobileScreenLayout: MobileScreenLayout(),
+            webScreenLayout: WebScreenLayout(),
+          ),
+        ));
+      }
     } else {
       showSnackBar(res, context);
     }

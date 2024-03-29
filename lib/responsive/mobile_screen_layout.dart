@@ -21,7 +21,7 @@ class _MobileScreenLayoutState extends State<MobileScreenLayout> {
   String username = "";
   int _page = 0;
   late PageController pageController;
-  late Future<String?> userImageFuture; // Initialize the Future
+  late Future<String?> userImageFuture; 
 
   @override
   void initState() {

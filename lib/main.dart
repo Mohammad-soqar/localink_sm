@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:localink_sm/providers/user_provider.dart';
 import 'package:localink_sm/screens/login_screen.dart';
 import 'package:localink_sm/screens/signup_screen.dart';
+import 'package:mapbox_gl/mapbox_gl.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'package:localink_sm/responsive/mobile_screen_layout.dart';
@@ -21,6 +22,8 @@ Future<void> main() async {
 
 class MyApp extends StatelessWidget {
   const MyApp({Key? key});
+
+
 
   @override
   Widget build(BuildContext context) {

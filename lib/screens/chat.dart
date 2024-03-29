@@ -22,6 +22,7 @@ class _MessagePageState extends State<MessagePage> {
   final TextEditingController _messageController = TextEditingController();
   final FireStoreMethods _firestoreMethods = FireStoreMethods();
   final ScrollController _scrollController = ScrollController();
+  FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   Future<Map<String, dynamic>> _getConversationId() async {
     String senderId = FirebaseAuth.instance.currentUser!.uid;
@@ -34,13 +35,44 @@ class _MessagePageState extends State<MessagePage> {
   void initState() {
     super.initState();
     // Add a listener to scroll to bottom whenever the messages list updates
-     String currentUserId = FirebaseAuth.instance.currentUser!.uid;
-  _firestoreMethods.resetUnreadCount(widget.conversationId, currentUserId);
+    String currentUserId = FirebaseAuth.instance.currentUser!.uid;
+    _firestoreMethods.resetUnreadCount(widget.conversationId, currentUserId);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
         _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
       }
     });
+  }
+
+  Future<Map<String, dynamic>?> fetchPostDetails(String postId) async {
+    try {
+      DocumentSnapshot postSnapshot =
+          await _firestore.collection('posts').doc(postId).get();
+      if (postSnapshot.exists) {
+        Map<String, dynamic>? postData =
+            postSnapshot.data() as Map<String, dynamic>?;
+        // Fetch the first media item for simplicity, you can adjust as needed
+        QuerySnapshot mediaSnapshot = await _firestore
+            .collection('posts/$postId/postMedia')
+            .limit(1)
+            .get();
+        if (mediaSnapshot.docs.isNotEmpty) {
+          // Explicitly cast the data to a Map<String, dynamic>
+          var mediaData =
+              mediaSnapshot.docs.first.data() as Map<String, dynamic>?;
+          // Now you can safely use the [] operator since mediaData is properly typed
+          String? mediaUrl = mediaData?['mediaUrl'] as String?;
+          if (mediaUrl != null) {
+            postData?['mediaUrl'] = mediaUrl;
+          }
+        }
+
+        return postData;
+      }
+    } catch (e) {
+      print("Error fetching post: $e");
+    }
+    return null;
   }
 
   List<dynamic> _processMessagesForDateSeparators(List<DocumentSnapshot> docs) {
@@ -107,46 +139,49 @@ class _MessagePageState extends State<MessagePage> {
   }
 
   @override
-Widget build(BuildContext context) {
-  return Scaffold(
-    appBar: AppBar(
-      title: Row(
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Row(
+          children: [
+            CircleAvatar(
+              backgroundImage: NetworkImage(widget.user.photoUrl),
+            ),
+            SizedBox(width: 8),
+            Text(widget.user.username),
+          ],
+        ),
+      ),
+      body: Column(
         children: [
-          CircleAvatar(
-            backgroundImage: NetworkImage(widget.user.photoUrl),
+          Expanded(
+            child: widget.conversationId.isEmpty
+                ? Center(
+                    child: Text(
+                        "Start a conversation with ${widget.user.username}"),
+                  )
+                : StreamBuilder<QuerySnapshot>(
+                    stream:
+                        _firestoreMethods.getMessages(widget.conversationId),
+                    builder: (context, snapshot) {
+                      if (snapshot.hasError)
+                        return Text('Error: ${snapshot.error}');
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return CircularProgressIndicator();
+                      }
+
+                      List<DocumentSnapshot> docs = snapshot.data!.docs;
+                      List<dynamic> itemsWithSeparators =
+                          _processMessagesForDateSeparators(docs);
+                      return _buildMessagesList(itemsWithSeparators);
+                    },
+                  ),
           ),
-          SizedBox(width: 8),
-          Text(widget.user.username),
+          _buildInputArea(),
         ],
       ),
-    ),
-    body: Column(
-      children: [
-        Expanded(
-          child: widget.conversationId.isEmpty
-              ? Center(
-                  child: Text("Start a conversation with ${widget.user.username}"),
-                )
-              : StreamBuilder<QuerySnapshot>(
-                  stream: _firestoreMethods.getMessages(widget.conversationId),
-                  builder: (context, snapshot) {
-                    if (snapshot.hasError) return Text('Error: ${snapshot.error}');
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return CircularProgressIndicator();
-                    }
-
-                    List<DocumentSnapshot> docs = snapshot.data!.docs;
-                    List<dynamic> itemsWithSeparators = _processMessagesForDateSeparators(docs);
-                    return _buildMessagesList(itemsWithSeparators);
-                  },
-                ),
-        ),
-        _buildInputArea(),
-      ],
-    ),
-  );
-}
-
+    );
+  }
 
   Widget _buildItem(dynamic item) {
     if (item is DocumentSnapshot) {
@@ -180,30 +215,94 @@ Widget build(BuildContext context) {
   }
 
   Widget _buildMessageTile(Map<String, dynamic> messageData, bool isMe) {
-    return Align(
-      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: isMe ? highlightColor : darkLBackgroundColor,
-          borderRadius: isMe
-              ? const BorderRadius.only(
-                  topLeft: Radius.circular(12),
-                  topRight: Radius.circular(12),
-                  bottomLeft: Radius.circular(12),
-                )
-              : const BorderRadius.only(
-                  topLeft: Radius.circular(12),
-                  topRight: Radius.circular(12),
-                  bottomRight: Radius.circular(12),
-                ),
+    // Check if the message type is 'post'
+    if (messageData['type'] == 'post') {
+      // Handle post type message
+      return _buildPostMessageTile(messageData, isMe);
+    } else {
+      // Handle regular text or media message
+      return Align(
+        alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: isMe ? highlightColor : darkLBackgroundColor,
+            borderRadius: isMe
+                ? const BorderRadius.only(
+                    topLeft: Radius.circular(12),
+                    topRight: Radius.circular(12),
+                    bottomLeft: Radius.circular(12),
+                  )
+                : const BorderRadius.only(
+                    topLeft: Radius.circular(12),
+                    topRight: Radius.circular(12),
+                    bottomRight: Radius.circular(12),
+                  ),
+          ),
+          child: Text(
+            messageData['content'] ?? "Message not available",
+            style: TextStyle(color: isMe ? primaryColor : primaryColor),
+          ),
         ),
-        child: Text(
-          messageData['content'] ?? "Message not available",
-          style: TextStyle(color: isMe ? primaryColor : primaryColor),
-        ),
-      ),
+      );
+    }
+  }
+
+  Widget _buildPostMessageTile(Map<String, dynamic> messageData, bool isMe) {
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: fetchPostDetails(messageData['sharedPostId']),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return CircularProgressIndicator(); // Show loading indicator while fetching post details
+        } else if (snapshot.hasError || !snapshot.hasData) {
+          return Text('Error fetching post or post not found');
+        } else {
+          Map<String, dynamic>? postDetails = snapshot.data;
+          return Align(
+            alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: isMe ? highlightColor : darkLBackgroundColor,
+                borderRadius: isMe
+                    ? const BorderRadius.only(
+                        topLeft: Radius.circular(12),
+                        topRight: Radius.circular(12),
+                        bottomLeft: Radius.circular(12),
+                      )
+                    : const BorderRadius.only(
+                        topLeft: Radius.circular(12),
+                        topRight: Radius.circular(12),
+                        bottomRight: Radius.circular(12),
+                      ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Shared Post:",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: isMe ? primaryColor : primaryColor,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  // Display the post's image
+                  Image.network(postDetails?['mediaUrl'] ?? ''),
+                  SizedBox(height: 4),
+                  // Display the post's caption
+                  Text(
+                    postDetails?['caption'] ?? 'Caption not available',
+                    style: TextStyle(color: isMe ? primaryColor : primaryColor),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+      },
     );
   }
 

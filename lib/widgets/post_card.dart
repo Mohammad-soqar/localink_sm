@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
@@ -10,9 +11,12 @@ import 'package:provider/provider.dart';
 import 'package:localink_sm/models/user.dart' as model;
 import 'package:localink_sm/providers/user_provider.dart';
 import 'package:localink_sm/widgets/like_animation.dart';
+import 'package:video_player/video_player.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 class PostCard extends StatefulWidget {
   final snap;
+  
 
   const PostCard({Key? key, required this.snap}) : super(key: key);
 
@@ -26,21 +30,50 @@ class _PostCardState extends State<PostCard> {
   bool isLikeAnimating = false;
   model.User? userData;
   List<String> reactions = [];
+  VideoPlayerController? _videoPlayerController;
+  bool _isMuted = true;
+  late Stream<List<String>> followingListStream;
+  final TextEditingController _messageController = TextEditingController();
+  final FireStoreMethods _firestoreMethods = FireStoreMethods();
+
+
+
+  String? _postType;
   String? postId;
 
   @override
   void initState() {
     super.initState();
+    _fetchPostType();
     fetchUserData();
+    followingListStream = _getUserFollowingList();
+
     postId = widget.snap['id'];
+    if (widget.snap['mediaType'] == 'video') {
+      _videoPlayerController =
+          VideoPlayerController.networkUrl(widget.snap['mediaUrl'])
+            ..initialize().then((_) {
+              setState(() {});
+              _videoPlayerController!.setVolume(_isMuted ? 0 : 1);
+            });
+    }
     if (postId != null) {
-      // Fetch reactions when the widget is initialized
       fetchReactions(postId!);
     }
     fetchCommentLen();
 
-    // Initialize the Future for post media URLs
     _mediaUrlsFuture = fetchPostMediaUrls(widget.snap);
+  }
+
+  void _fetchPostType() async {
+    DocumentReference postTypeRef = widget.snap['postType'];
+    DocumentSnapshot postTypeSnapshot = await postTypeRef.get();
+    if (mounted) {
+      setState(() {
+        _postType = postTypeSnapshot[
+            'postType_name']; // Correct field name as per your database
+      });
+    }
   }
 
   fetchUserData() async {
@@ -48,7 +81,7 @@ class _PostCardState extends State<PostCard> {
       dynamic uid = widget.snap['uid'];
       DocumentSnapshot userSnapshot =
           await FirebaseFirestore.instance.collection('users').doc(uid).get();
-      userData = User.fromSnap(userSnapshot);
+      userData = model.User.fromSnap(userSnapshot);
       setState(() {});
     } catch (err) {
       print('Error fetching user data: $err');
@@ -93,7 +126,7 @@ class _PostCardState extends State<PostCard> {
           await FirebaseFirestore.instance
               .collection('posts')
               .doc(postId)
-              .collection('reaction')
+              .collection('reactions')
               .get();
 
       List<String> reactions =
@@ -158,6 +191,299 @@ class _PostCardState extends State<PostCard> {
     }
 
     return spans;
+  }
+
+  void _initializeVideoPlayer(String mediaUrl) {
+    Uri mediaUri = Uri.parse(mediaUrl);
+    _videoPlayerController?.dispose();
+    _videoPlayerController = VideoPlayerController.networkUrl(mediaUri);
+
+    _videoPlayerController!.initialize().then((_) {
+      if (mounted) {
+        setState(() {});
+      }
+    }).catchError((error) {
+      print("Error initializing VideoPlayerController: $error");
+    });
+  }
+
+  Widget _buildImage(String mediaUrl) {
+    return Container(
+      height:
+          MediaQuery.of(context).size.height * 0.45, // Adjust size as needed
+      width: double.infinity,
+      decoration: BoxDecoration(
+        image: DecorationImage(
+          image: NetworkImage(mediaUrl),
+          fit: BoxFit.cover,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVideoPlayer(String mediaUrl) {
+    // Ensure the controller is only initialized once or when the URL changes
+    if (_videoPlayerController == null ||
+        _videoPlayerController!.dataSource != mediaUrl) {
+      _videoPlayerController?.dispose();
+      // ignore: deprecated_member_use
+      _videoPlayerController = VideoPlayerController.network(mediaUrl)
+        ..initialize().then((_) {
+          if (mounted) {
+            setState(() {
+              // Video player initialized, UI needs to be updated
+            });
+            _videoPlayerController!.play();
+          }
+        }).catchError((error) {
+          print("Error initializing VideoPlayerController: $error");
+        });
+    }
+
+    return AspectRatio(
+      aspectRatio: _videoPlayerController?.value.isInitialized ?? false
+          ? _videoPlayerController!.value.aspectRatio
+          : 16 / 9,
+      child: _videoPlayerController?.value.isInitialized ?? false
+          ? Stack(
+              alignment: Alignment.bottomRight,
+              children: [
+                VideoPlayer(_videoPlayerController!),
+                IconButton(
+                  icon: Icon(_isMuted ? Icons.volume_off : Icons.volume_up),
+                  onPressed: () {
+                    if (mounted) {
+                      setState(() {
+                        _isMuted = !_isMuted;
+                        _videoPlayerController!.setVolume(_isMuted ? 0 : 1);
+                      });
+                    }
+                  },
+                ),
+              ],
+            )
+          : Center(child: CircularProgressIndicator()),
+    );
+  }
+
+  Stream<List<String>> _getUserFollowingList() async* {
+    String userId = FirebaseAuth.instance.currentUser!.uid;
+    var userSnap =
+        await FirebaseFirestore.instance.collection('users').doc(userId).get();
+    var followingList = userSnap.data()!['following'];
+    yield List<String>.from(followingList);
+  }
+
+  Stream<List<model.User>> _getUserProfiles(List<String> userIds) async* {
+    List<model.User> profiles = [];
+
+    for (String userId in userIds) {
+      var userSnap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .get();
+      profiles.add(model.User.fromSnap(userSnap));
+    }
+
+    yield profiles;
+  }
+
+  void _onShareButtonPressed() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        // State to track the selected user
+        String? selectedUserId;
+
+        return FutureBuilder<DocumentSnapshot>(
+          future: FirebaseFirestore.instance
+              .collection('users')
+              .doc(FirebaseAuth.instance.currentUser!.uid)
+              .get(),
+          builder: (context, userSnapshot) {
+            if (userSnapshot.connectionState == ConnectionState.waiting) {
+              return Center(child: CircularProgressIndicator());
+            }
+            if (!userSnapshot.hasData || userSnapshot.data!.data() == null) {
+              return Center(child: Text("No following information available."));
+            }
+            List<String> followingUserIds =
+                List<String>.from(userSnapshot.data!.get('following'));
+
+            return StatefulBuilder(
+              builder: (BuildContext context, StateSetter setModalState) {
+                return Container(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8.0),
+                        child: Text(
+                          'Share with...',
+                          style: TextStyle(
+                              fontSize: 18.0, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      SizedBox(
+                        height: 100,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: followingUserIds.length,
+                          itemBuilder: (BuildContext context, int index) {
+                            return FutureBuilder<DocumentSnapshot>(
+                              future: FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(followingUserIds[index])
+                                  .get(),
+                              builder: (context, followingSnapshot) {
+                                if (followingSnapshot.connectionState ==
+                                    ConnectionState.waiting) {
+                                  return Center(
+                                      child: CircularProgressIndicator());
+                                }
+                                if (!followingSnapshot.hasData ||
+                                    followingSnapshot.data!.data() == null) {
+                                  return Container(); // Empty container in case of no data
+                                }
+                                var followingUserData = followingSnapshot.data!
+                                    .data() as Map<String, dynamic>;
+
+                                bool isSelected =
+                                    followingUserIds[index] == selectedUserId;
+
+                                return GestureDetector(
+                                  onTap: () {
+                                    setModalState(() {
+                                      selectedUserId = isSelected
+                                          ? null
+                                          : followingUserIds[
+                                              index]; // Toggle selection
+                                    });
+                                  },
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        margin:
+                                            EdgeInsets.symmetric(horizontal: 4),
+                                        padding: EdgeInsets.all(2),
+                                        decoration: BoxDecoration(
+                                          border: Border.all(
+                                            color: isSelected
+                                                ? highlightColor
+                                                : Colors
+                                                    .transparent, // Highlight border if selected
+                                            width: 2,
+                                          ),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: CircleAvatar(
+                                          backgroundImage: NetworkImage(
+                                              followingUserData['photoUrl']),
+                                          radius: 30,
+                                        ),
+                                      ),
+                                      Text(
+                                        followingUserData[
+                                            'username'], // Username text
+                                        style: const TextStyle(
+                                          color:
+                                              primaryColor, // Set the color that fits your design
+                                          fontSize:
+                                              14, // Adjust the size accordingly
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                      if (selectedUserId !=
+                          null) // Send button shows if a user is selected
+                        ElevatedButton(
+                          child: Text('Send'),
+                          onPressed: () {
+                            sendPostMessage(selectedUserId!, postId!);
+                            Navigator.of(context).pop();
+                          },
+                        ),
+                      Divider(),
+                      ListTile(
+                        leading: Icon(Icons.add_circle_outline),
+                        title: Text('Add to story'),
+                        onTap: () {
+                          // Add to story functionality
+                          Navigator.of(context).pop();
+                        },
+                      ),
+                      ListTile(
+                        leading: Icon(Icons.file_download),
+                        title: Text('Download'),
+                        onTap: () {
+                          // Download functionality
+                          Navigator.of(context).pop();
+                        },
+                      ),
+                      ListTile(
+                        leading: Icon(Icons.content_copy),
+                        title: Text('Copy link'),
+                        onTap: () {
+                          // Copy link functionality
+                          Navigator.of(context).pop();
+                        },
+                      ),
+                      ListTile(
+                        leading: Icon(Icons.message),
+                        title: Text('WhatsApp'),
+                        onTap: () {
+                          // Share to WhatsApp functionality
+                          Navigator.of(context).pop();
+                        },
+                      ),
+                      // Add more items here
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void sendPostMessage(String userId, String postId) async {
+
+
+      try {
+
+        String receiverUserId = userId; // Placeholder, replace with the actual receiver's user ID
+        String? existingConversationId; // This should be set if there's an existing conversation selected
+
+        // Attempt to send the message. If existingConversationId is null, getOrCreateConversation will handle creating a new one.
+        await _firestoreMethods.sendMessage(
+          conversationId:
+              existingConversationId, // If this is null, a new conversation will be created
+          participantIDs: [
+            FirebaseAuth.instance.currentUser!.uid,
+            receiverUserId
+          ], // Required for creating a new conversation
+          senderId: FirebaseAuth.instance.currentUser!.uid,
+
+          messageText: _messageController.text.trim(),
+          messageType: 'post', // Indicating that this is a text message
+          sharedPostId: postId,
+        );
+        _messageController.clear();
+      } catch (e) {
+        print(e); // Ideally, use a more user-friendly way to show the error
+      }
+    
   }
 
   @override
@@ -258,23 +584,19 @@ class _PostCardState extends State<PostCard> {
               future: _mediaUrlsFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return CircularProgressIndicator(); // Loading indicator
+                  return CircularProgressIndicator(); // Show loading indicator while fetching media URLs
                 } else if (snapshot.hasError) {
                   return Text('Error fetching post media');
+                } else if (_postType == null) {
+                  return CircularProgressIndicator(); // Show loading indicator while fetching post type
                 } else {
                   List<String> mediaUrls = snapshot.data as List<String>;
                   return Column(
-                    children: [
-                      for (var mediaUrl in mediaUrls)
-                        Container(
-                          height: MediaQuery.of(context).size.height * 0.45,
-                          width: double.infinity,
-                          child: Image.network(
-                            mediaUrl,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                    ],
+                    children: mediaUrls.map((mediaUrl) {
+                      return _postType == 'videos'
+                          ? _buildVideoPlayer(mediaUrl)
+                          : _buildImage(mediaUrl);
+                    }).toList(),
                   );
                 }
               },
@@ -283,7 +605,6 @@ class _PostCardState extends State<PostCard> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                // Like button with animation
                 LikeAnimation(
                   isAnimating: reactions?.contains(user?.uid) ?? false,
                   smallLike: true,
@@ -292,7 +613,7 @@ class _PostCardState extends State<PostCard> {
                         ? SvgPicture.asset(
                             'assets/icons/like.svg',
                             height: 24,
-                            color: Colors.blue,
+                            color: highlightColor,
                           )
                         : SvgPicture.asset(
                             'assets/icons/like.svg',
@@ -300,7 +621,6 @@ class _PostCardState extends State<PostCard> {
                             color: Colors.white,
                           ),
                     onPressed: () async {
-                      // Trigger the animation by setting isLikeAnimating to true
                       setState(() {
                         isLikeAnimating = true;
                       });
@@ -308,13 +628,12 @@ class _PostCardState extends State<PostCard> {
                       await FireStoreMethods().likePost(
                         user!.uid,
                         widget.snap['id'],
+                        widget.snap['uid'],
                         widget.snap['hashtags'].cast<String>(),
                       );
 
-                      // After liking, refresh reactions
                       fetchReactions(widget.snap['id']);
 
-                      // After the animation is complete, set isLikeAnimating to false
                       setState(() {
                         isLikeAnimating = false;
                       });
@@ -345,9 +664,7 @@ class _PostCardState extends State<PostCard> {
                     height: 24,
                     color: Colors.white,
                   ),
-                  onPressed: () {
-                    // Add share functionality
-                  },
+                  onPressed: _onShareButtonPressed, // Updated this line
                 ),
 
                 Expanded(

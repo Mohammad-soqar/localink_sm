@@ -5,18 +5,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:localink_sm/models/user.dart' as model;
 import 'package:localink_sm/providers/user_provider.dart';
 import 'package:localink_sm/screens/add_post_screen.dart';
 import 'package:localink_sm/screens/chat_screen.dart';
 import 'package:localink_sm/screens/comment_screen.dart';
 import 'package:localink_sm/screens/create_post.dart';
-import 'package:localink_sm/screens/messaging.dart';
+import 'package:localink_sm/screens/chat.dart';
 import 'package:localink_sm/screens/permission_test.dart';
 import 'package:localink_sm/screens/test.dart';
 import 'package:localink_sm/screens/verify_email_screen.dart';
 import 'package:localink_sm/utils/colors.dart';
 import 'package:localink_sm/utils/location_utils.dart';
+import 'package:localink_sm/widgets/map-picker.dart';
 import 'package:localink_sm/widgets/post_card.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:provider/provider.dart';
@@ -148,9 +150,21 @@ class _FeedScreenState extends State<FeedScreen> {
                     ],
                   ),
                 ),
-                onTap: () {
+                onTap: () async {
+                  Position position = await Geolocator.getCurrentPosition(
+                      desiredAccuracy: LocationAccuracy.high);
+                  String address = await LocationUtils.getAddressFromLatLng(
+                      position.latitude, position.longitude);
+
                   setState(() {
-                    selectedOption = 'option1';
+                    selectedOption =
+                        'currentLocation'; 
+                    userLocation =
+                        address; 
+                    userLatitude = position
+                        .latitude;
+                    userLongitude = position
+                        .longitude;
                   });
                   Navigator.pop(context);
                 },
@@ -167,8 +181,62 @@ class _FeedScreenState extends State<FeedScreen> {
               ListTile(
                 title: Text('Visit Area'),
                 onTap: () {
-                  Navigator.pop(context);
+                  _showMapPicker(context); // Show the map picker dialog
                 },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showMapPicker(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible:
+          true, // Allows dismissing the dialog by tapping outside of it
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors
+              .transparent, // Transparent background to apply custom decoration
+          child: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: <Widget>[
+              Container(
+                width: double.infinity,
+                height: MediaQuery.of(context).size.height *
+                    0.7, // Adjust size as needed
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(15),
+                  color: Colors.white,
+                ),
+                padding: EdgeInsets.all(20),
+                child: MapPickerWidget(
+                  onLocationSelected: (LatLng selectedLocation) {
+                    setState(() {
+                      selectedOption = 'visitArea';
+                      userLatitude = selectedLocation.latitude;
+                      userLongitude = selectedLocation.longitude;
+                    });
+                    Navigator.of(context)
+                        .pop(); // Close the dialog after selection
+                  },
+                ),
+              ),
+              Positioned(
+                right: -15.0, // Adjust position as needed
+                top: -15.0, // Adjust position as needed
+                child: InkResponse(
+                  onTap: () {
+                    Navigator.of(context).pop(); // Close the dialog
+                  },
+                  child: CircleAvatar(
+                    child: Icon(Icons.close),
+                    backgroundColor: Colors.red,
+                  ),
+                ),
               ),
             ],
           ),
@@ -183,7 +251,7 @@ class _FeedScreenState extends State<FeedScreen> {
     double endLat,
     double endLon,
   ) {
-    const int radiusOfEarth = 6371; // Earth's radius in kilometers
+    const int radiusOfEarth = 6371;
 
     // Convert degrees to radians
     double startLatRad = startLat * (3.141592653589793 / 180);
@@ -208,8 +276,6 @@ class _FeedScreenState extends State<FeedScreen> {
 
     return distance;
   }
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -268,47 +334,6 @@ class _FeedScreenState extends State<FeedScreen> {
                     ),
                   ),
                 ),
-                /* IconButton(
-                  icon: SvgPicture.asset(
-                    'assets/icons/Navigation/messages.svg',
-                    height: 24,
-                    color: Colors.white,
-                  ),
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (BuildContext context) {
-                        return FutureBuilder<model.User?>(
-                          future: getCurrentUser(),
-                          builder: (BuildContext context,
-                              AsyncSnapshot<model.User?> snapshot) {
-                            if (snapshot.connectionState ==
-                                ConnectionState.done) {
-                              if (snapshot.hasData && snapshot.data != null) {
-                                // Ensure the user is non-null before navigating
-                                User user = snapshot.data! as User;
-                                Navigator.of(context).pop(); // Close the dialog
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        MessagePage(user: user),
-                                  ),
-                                );
-                                return SizedBox(); // Return an empty widget after navigation
-                              } else {
-                                // Handle the case where no user is found or snapshot contains a null user
-                                Navigator.of(context).pop(); // Close the dialog
-                                return SizedBox(); // Return an empty widget after handling the case
-                              }
-                            }
-                            // Show a loading spinner while waiting for the user data
-                            return CircularProgressIndicator();
-                          },
-                        );
-                      },
-                    );
-                  },
-                ), */
               ],
             ),
           ],
@@ -346,7 +371,7 @@ class _FeedScreenState extends State<FeedScreen> {
                   IconButton(
                     icon: SvgPicture.asset(
                       'assets/icons/locamap.svg',
-                      color: highlightColor, // Change to your highlightColor
+                      color: highlightColor,
                       width: 24,
                       height: 24,
                     ),
@@ -355,24 +380,25 @@ class _FeedScreenState extends State<FeedScreen> {
                   SizedBox(width: 8.0),
                   Expanded(
                     child: Text(
-                      userLocation ??
-                          'Fetching location...', // Display the location or a placeholder
+                      selectedOption == 'global'
+                          ? 'Global'
+                          : (userLocation ?? 'Select Area'),
                       style: const TextStyle(
-                        color: Colors.white, // Text color
+                        color: Colors.white,
                         fontSize: 16,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  const Icon(
-                    Icons.keyboard_arrow_down_rounded,
-                    color: highlightColor, // Change to your highlightColor
-                  ),
+                  if (selectedOption != 'global')
+                    const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: highlightColor,
+                    ),
                 ],
               ),
             ),
           ),
-          // ... (existing code)
           Expanded(
             child: StreamBuilder<List<String>>(
               stream: followingListStream,
@@ -411,18 +437,17 @@ class _FeedScreenState extends State<FeedScreen> {
                       );
                     }
 
-                    // Filter posts based on user's location (latitude and longitude) only if the option is not "global"
                     List<DocumentSnapshot<Map<String, dynamic>>> filteredPosts =
                         postSnapshot.data!.docs.where((post) {
-                      // Check if the selected option is "global"
                       if (selectedOption == 'global') {
-                        return true; // Return true to include all posts without distance calculations
+                        return true; // Include all posts for global option
                       }
 
+                      // Extract post latitude and longitude
                       double postLatitude = post['latitude'] as double;
                       double postLongitude = post['longitude'] as double;
 
-                      // Replace with your logic to check the distance
+                      // Calculate distance from the user or selected area to the post
                       double distance = calculateDistance(
                         userLatitude,
                         userLongitude,
@@ -430,8 +455,8 @@ class _FeedScreenState extends State<FeedScreen> {
                         postLongitude,
                       );
 
-                      // Specify the distance threshold (in kilometers)
-                      double distanceThreshold = 1.0;
+                      double distanceThreshold =
+                          selectedOption == 'visitArea' ? 5.0 : 1.0;
 
                       return distance <= distanceThreshold;
                     }).toList();

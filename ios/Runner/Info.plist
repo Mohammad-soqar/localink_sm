@@ -44,13 +44,43 @@
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
-<true/>
-<key>NSPhotoLibraryUsageDescription</key>
-<string>Your custom message for accessing the photo library.</string>
-<key>NSMicrophoneUsageDescription</key>
-<string>Mic Usage</string>
-<key>NSCameraUsageDescription</key>
-<string>Privacy Camera Usage</string>
+
+
+
+	<true/>
+	<string>Photo Library Usage</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Mic Usage</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Privacy Camera Usage</string>
+	    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>[Your explanation here]</string>
+<!-- Location Permissions -->
+  <key>NSLocationWhenInUseUsageDescription</key>
+  <string>We need your location to provide location-based services</string>
+  <key>NSLocationAlwaysUsageDescription</key>
+  <string>We need your location to provide location-based services even when the app is not in use</string>
+  <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+  <string>We need your location to provide location-based services even when the app is not in use</string>
+
+  <!-- Photos Library Permissions -->
+  <key>NSPhotoLibraryUsageDescription</key>
+  <string>We need access to your photo library for uploading and managing your photos</string>
+
+  <!-- This key is required if your app needs to access the user's photo library and the app supports iOS 14.0+. -->
+  <key>NSPhotoLibraryAddUsageDescription</key>
+  <string>We need permission to save photos to your photo library</string>
+
+  <!-- Camera & Microphone Permissions -->
+  <key>NSCameraUsageDescription</key>
+  <string>We need access to your camera for capturing photos and videos</string>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>We need access to your microphone for capturing audio</string>
+
+  <!-- If your app needs to read the user's media or write to the library -->
+  <key>NSAppleMusicUsageDescription</key>
+  <string>We need access to your media library for selecting background music</string>
+  
 
 </dict>
 </plist>

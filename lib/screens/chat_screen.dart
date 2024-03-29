@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:localink_sm/models/user.dart' as model;
 import 'package:localink_sm/resources/firestore_methods.dart';
-import 'package:localink_sm/screens/messaging.dart';
+import 'package:localink_sm/screens/chat.dart';
 import 'package:localink_sm/utils/colors.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -12,6 +12,8 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
+  String selectedCategory = 'All Chats';
+
   Future<model.User?> getUser(String userId) async {
     FirebaseFirestore firestore = FirebaseFirestore.instance;
     DocumentSnapshot userSnapshot =
@@ -25,38 +27,59 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xFF111b21),
+      backgroundColor: darkBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Color(0xFF2A2F32),
+        backgroundColor: secondaryColor,
         title: const Text('Chats'),
         actions: [
-          IconButton(
-            icon: Icon(Icons.search),
-            onPressed: () {},
-          ),
+         //icons goes here
         ],
       ),
       body: Column(
         children: [
-          // Category selector
+          Padding(
+            padding: const EdgeInsets.all(0.0),
+            child: TextField(
+              decoration: const InputDecoration(
+                hintText: 'Search...',
+                filled: true, 
+                fillColor: darkLBackgroundColor, 
+                border: OutlineInputBorder(
+                  borderSide: BorderSide.none,
+                ),
+                prefixIcon: Icon(Icons.search),
+              ),
+              onChanged: (value) {
+               
+              },
+            ),
+          ),
           Container(
-            height: 90,
-            color: Color(0xFF2A2F32),
+            height: 60,
+            color: darkLBackgroundColor,
             child: ListView(
               scrollDirection: Axis.horizontal,
-              children: const [
-                CategoryWidget(label: 'All Chats'),
-                CategoryWidget(label: 'Personal'),
-                CategoryWidget(label: 'Work'),
-                CategoryWidget(label: 'Groups'),
+              children: [
+                CategoryWidget(
+                  label: 'All Chats',
+                  isSelected: selectedCategory == 'All Chats',
+                  onTap: () => setState(() => selectedCategory = 'All Chats'),
+                ),
+                CategoryWidget(
+                  label: 'Groups',
+                  isSelected: selectedCategory == 'Groups',
+                  onTap: () => setState(() => selectedCategory = 'Groups'),
+                ),
+                CategoryWidget(
+                  label: 'Stared',
+                  isSelected: selectedCategory == 'Stared',
+                  onTap: () => setState(() => selectedCategory = 'Stared'),
+                ),
               ],
             ),
           ),
-          // Chat list
           Expanded(
-            child: Container(
-              child: ChatListWidget(),
-            ),
+            child: ChatListWidget(),
           ),
         ],
       ),
@@ -64,21 +87,46 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 }
 
-class CategoryWidget extends StatelessWidget {
+class CategoryWidget extends StatefulWidget {
   final String label;
+  final VoidCallback onTap;
+  final bool isSelected;
 
-  const CategoryWidget({Key? key, required this.label}) : super(key: key);
+  const CategoryWidget({
+    Key? key,
+    required this.label,
+    required this.onTap,
+    this.isSelected = false,
+  }) : super(key: key);
 
   @override
+  _CategoryWidgetState createState() => _CategoryWidgetState();
+}
+
+class _CategoryWidgetState extends State<CategoryWidget> {
+  @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 30),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 16,
-          fontWeight: FontWeight.bold,
+    return InkWell(
+      onTap: widget.onTap,
+      child: Container(
+        margin:
+            EdgeInsets.symmetric(horizontal: 8, vertical: 10), // Added margin
+
+        padding: EdgeInsets.symmetric(horizontal: 18, vertical: 5),
+
+        alignment:
+            Alignment.center, // Center the text vertically and horizontally
+        decoration: BoxDecoration(
+          color: widget.isSelected ? darkerHighlightColor1 : secondaryColor,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Text(
+          widget.label,
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
     );
@@ -235,44 +283,65 @@ class ChatItemWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundImage:
-              avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
-          backgroundColor: avatarUrl.isEmpty ? Colors.grey : null,
-        ),
-        title: Text(
-          contactName,
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        subtitle: Text(
-          lastMessage,
-          style: TextStyle(
-            color:unreadCount != null && unreadCount! > 0
-                ? primaryColor
-                : Colors.grey[400]
-            
-             ,
-            fontWeight: unreadCount != null && unreadCount! > 0
-                ? FontWeight.w600
-                : FontWeight
-                    .normal,
-          ),
-          overflow: TextOverflow.ellipsis,
-        ),
-        trailing: unreadCount != null && unreadCount! > 0
-            ? Container(
-                padding: EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: highlightColor,
-                  shape: BoxShape.circle,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+            vertical: 8.0), // Adjust padding as needed
+        child: Row(
+          children: [
+            Expanded(
+              // Wrap ListTile in Expanded to ensure it takes up remaining space
+              child: ListTile(
+                leading: CircleAvatar(
+                  backgroundImage:
+                      avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+                  backgroundColor: avatarUrl.isEmpty ? Colors.grey : null,
                 ),
-                child: Text(
-                  '$unreadCount',
-                  style: TextStyle(color: Colors.white, fontSize: 12),
+                title: Text(
+                  contactName,
+                  style: TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.bold),
                 ),
-              )
-            : null, // Display the unread count here
+                subtitle: Text(
+                  lastMessage,
+                  style: TextStyle(
+                    color: unreadCount != null && unreadCount! > 0
+                        ? primaryColor
+                        : Colors.grey[400],
+                    fontWeight: unreadCount != null && unreadCount! > 0
+                        ? FontWeight.w600
+                        : FontWeight.normal,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                trailing: unreadCount != null && unreadCount! > 0
+                    ? Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: const BoxDecoration(
+                          color: highlightColor,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(
+                          '$unreadCount',
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 12),
+                        ),
+                      )
+                    : null,
+              ),
+            ),
+            // Your new Container
+            Container(
+              // Your Container properties here
+              padding: const EdgeInsets.all(3),
+              child: IconButton(
+                icon: Icon(Icons.photo_camera),
+                onPressed: () {
+                  // Handle camera action
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
