@@ -44,11 +44,13 @@
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
-	<true/>
-	<string>Photo Library Usage</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Mic Usage</string>
-	<key>NSCameraUsageDescription</key>
-	<string>Privacy Camera Usage</string>
+<true/>
+<key>NSPhotoLibraryUsageDescription</key>
+<string>Your custom message for accessing the photo library.</string>
+<key>NSMicrophoneUsageDescription</key>
+<string>Mic Usage</string>
+<key>NSCameraUsageDescription</key>
+<string>Privacy Camera Usage</string>
+
 </dict>
 </plist>
