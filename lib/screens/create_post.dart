@@ -46,9 +46,9 @@ class _PostPageState extends State<PostPage> {
           });
         },
         children: [
-          PhotosPage(),
-          VideosPage(),
-          TextPage(),
+          const PhotosPage(),
+          const VideosPage(),
+          CreateUpdatePage(),
         ],
       ),
       bottomNavigationBar: Positioned(
@@ -312,6 +312,7 @@ class CaptionPage extends StatefulWidget {
 class _CaptionPageState extends State<CaptionPage> {
   final TextEditingController _descriptionController = TextEditingController();
   bool _isLoading = false;
+  PageController pageController = PageController(initialPage: 0);
 
   Future<File?> assetEntityToFile(AssetEntity assetEntity) async {
     final File? file = await assetEntity.file;
@@ -373,12 +374,11 @@ class _CaptionPageState extends State<CaptionPage> {
         );
 
         if (res == "success") {
-          Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (context) => FeedScreen()));
           showSnackBar('Posted!', context);
+          Navigator.of(context).popUntil((route) => route.isFirst);
+          pageController.jumpToPage(0);
         } else {
-          showSnackBar(
-              res, context); // Assuming res contains error message on failure
+          showSnackBar(res, context);
         }
       } else {
         showSnackBar('Media processing failed.', context);
@@ -654,11 +654,129 @@ class _VideosPageState extends State<VideosPage> {
   }
 }
 
-class TextPage extends StatelessWidget {
+class CreateUpdatePage extends StatefulWidget {
+  @override
+  _CreateUpdatePageState createState() => _CreateUpdatePageState();
+}
+
+class _CreateUpdatePageState extends State<CreateUpdatePage> {
+  final TextEditingController _captionController = TextEditingController();
+  bool isKeyboardVisible = false;
+  bool _isLoading = false;
+  PageController pageController = PageController(initialPage: 0);
+  // Add more controllers and state variables for polls, Q&A as needed
+
+  @override
+  void initState() {
+    super.initState();
+    // Set up listeners or any initial data fetch if required
+  }
+
+  @override
+  void dispose() {
+    _captionController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _postUpdate(String uid) async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      Position position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high);
+      double latitude = position.latitude;
+      double longitude = position.longitude;
+
+      String res = await FireStoreMethods().createTextPost(
+        uid,
+        _captionController.text,
+        "updates",
+        latitude,
+        longitude,
+      );
+
+      if (res == "success") {
+        showSnackBar('Posted!', context);
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        pageController.jumpToPage(0);
+      } else {
+        showSnackBar(res, context);
+      }
+    } catch (err) {
+      showSnackBar(err.toString(), context);
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Text('Text Content Goes Here'),
+    final model.User? user = Provider.of<UserProvider>(context).getUser;
+    isKeyboardVisible = MediaQuery.of(context).viewInsets.bottom != 0;
+    return Scaffold(
+      body: Column(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _captionController,
+              keyboardType: TextInputType.multiline,
+              maxLines: null, // This allows for multi-line input
+              style: TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: "What's on your mind?",
+                hintStyle: TextStyle(color: Colors.grey),
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(horizontal: 16),
+              ),
+            ),
+          ),
+
+          ElevatedButton(
+            onPressed: _isLoading ? null : () => _postUpdate(user!.uid),
+            child: _isLoading
+                ? CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  )
+                : Text('Post'),
+          ),
+          // This container will hold our features
+          AnimatedContainer(
+            duration: Duration(milliseconds: 250),
+            curve: Curves.easeInOut,
+            padding: EdgeInsets.only(
+              bottom: isKeyboardVisible
+                  ? MediaQuery.of(context).viewInsets.bottom
+                  : 0,
+            ),
+            child: _buildFeatureBar(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeatureBar() {
+    // Replace these with actual interactive features.
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        IconButton(
+          icon: Icon(Icons.poll),
+          onPressed: () {
+            // Implement your poll creation logic
+          },
+        ),
+        IconButton(
+          icon: Icon(Icons.question_answer),
+          onPressed: () {
+            // Implement your Q&A session logic
+          },
+        ),
+      ],
     );
   }
 }

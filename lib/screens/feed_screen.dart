@@ -21,6 +21,7 @@ import 'package:localink_sm/utils/location_utils.dart';
 import 'package:localink_sm/widgets/map-picker.dart';
 import 'package:localink_sm/widgets/post_card.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:localink_sm/widgets/updates_card.dart';
 import 'package:provider/provider.dart';
 
 class FeedScreen extends StatefulWidget {
@@ -31,17 +32,72 @@ class FeedScreen extends StatefulWidget {
 }
 
 class _FeedScreenState extends State<FeedScreen> {
+  final ScrollController _scrollController = ScrollController();
   String? userLocation;
   late Stream<List<String>> followingListStream;
   String selectedOption = '';
   double userLatitude = 0.0;
   double userLongitude = 0.0;
+  bool _isFetchingPosts = false;
+  DocumentSnapshot? _lastDocument; // Last document from the last fetch
+  List<DocumentSnapshot> _posts = []; // Posts to display
+  bool _hasMorePosts = true; // Flag to check if more posts are available
 
   @override
   void initState() {
     super.initState();
     _determinePosition();
     followingListStream = _getUserFollowingList();
+
+    _scrollController.addListener(() {
+      if (_scrollController.position.pixels ==
+          _scrollController.position.maxScrollExtent) {
+        _fetchPosts();
+      }
+    });
+
+    _fetchPosts();
+  }
+
+  Future<void> _fetchPosts() async {
+    if (!_hasMorePosts || _isFetchingPosts) return;
+
+    _isFetchingPosts = true;
+
+    Query query = FirebaseFirestore.instance
+        .collection('posts')
+        .orderBy('createdDatetime',
+            descending: true) // Assuming you have a 'timestamp' field
+        .limit(10); // Fetch 10 documents at a time
+
+    if (_lastDocument != null) {
+      query = query.startAfterDocument(
+          _lastDocument!); // Paginate using the last document
+    }
+
+    String userId = FirebaseAuth.instance.currentUser!.uid;
+    var userSnap =
+        await FirebaseFirestore.instance.collection('users').doc(userId).get();
+    var followingList = userSnap.data()!['following'];
+    List<String> userFollowingList = List<String>.from(followingList);
+
+    userFollowingList.add(userId);
+
+    // Assuming you only want posts from users the current user is following
+    query = query.where('uid', whereIn: userFollowingList);
+
+    QuerySnapshot querySnapshot = await query.get();
+
+    if (querySnapshot.docs.isEmpty) {
+      _hasMorePosts = false;
+    } else {
+      _lastDocument =
+          querySnapshot.docs.last; // Keep track of the last document
+      _posts.addAll(querySnapshot.docs); // Add the fetched posts to the list
+    }
+
+    _isFetchingPosts = false;
+    if (mounted) setState(() {});
   }
 
   Stream<List<String>> _getUserFollowingList() async* {
@@ -130,7 +186,7 @@ class _FeedScreenState extends State<FeedScreen> {
               ListTile(
                 title: RichText(
                   text: TextSpan(
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: Colors.white, // Set the default color
                       fontSize: 16,
                     ),
@@ -138,7 +194,7 @@ class _FeedScreenState extends State<FeedScreen> {
                       TextSpan(
                         text: location ?? 'Fetching location...',
                       ),
-                      TextSpan(
+                      const TextSpan(
                         text: '  (Current Location)',
                         style: TextStyle(
                           color: Colors
@@ -157,14 +213,10 @@ class _FeedScreenState extends State<FeedScreen> {
                       position.latitude, position.longitude);
 
                   setState(() {
-                    selectedOption =
-                        'currentLocation'; 
-                    userLocation =
-                        address; 
-                    userLatitude = position
-                        .latitude;
-                    userLongitude = position
-                        .longitude;
+                    selectedOption = 'currentLocation';
+                    userLocation = address;
+                    userLatitude = position.latitude;
+                    userLongitude = position.longitude;
                   });
                   Navigator.pop(context);
                 },
@@ -277,6 +329,20 @@ class _FeedScreenState extends State<FeedScreen> {
     return distance;
   }
 
+  Future<void> _refreshFeed() async {
+    _lastDocument = null;
+    _posts.clear();
+    _hasMorePosts = true;
+    await _fetchPosts();
+  }
+
+  Future<String> getPostTypeName(DocumentReference postTypeRef) async {
+    // Fetch the document using the reference and extract the post type name
+    DocumentSnapshot postTypeSnapshot = await postTypeRef.get();
+    return postTypeSnapshot[
+        'postType_name']; // assuming the field is called 'name'
+  }
+
   @override
   Widget build(BuildContext context) {
     final model.User? user = Provider.of<UserProvider>(context).getUser;
@@ -301,11 +367,15 @@ class _FeedScreenState extends State<FeedScreen> {
                   onPressed: () {
                     showAboutDialog(
                       context: context,
-                      applicationIcon: FlutterLogo(),
+                      applicationIcon: SvgPicture.asset(
+                        'assets/logo-with-name-H.svg',
+                        height: 20,
+                      ),
                       applicationName: 'LocaLink',
-                      applicationVersion: '0.3.0',
+                      applicationVersion: '0.1.0',
                       children: [
-                        const Text('This is a beta version'),
+                        const Text(
+                            'This is a Pre-Alpha version for Internal Testing'),
                       ],
                     );
                   },
@@ -339,141 +409,157 @@ class _FeedScreenState extends State<FeedScreen> {
           ],
         ),
       ),
-      body: Column(
-        children: [
-          GestureDetector(
-            onTap:
-                userLocation != null ? () => _showOptionsPanel(context) : null,
-            child: Container(
-              margin: const EdgeInsets.all(6.0),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 5.0, vertical: 1.0),
-              decoration: BoxDecoration(
-                border: Border.all(
-                  color: highlightColor, // Change to your highlightColor
-                  width: 2.0,
+      body: RefreshIndicator(
+        onRefresh: _refreshFeed,
+        child: Column(
+          children: [
+            GestureDetector(
+              onTap: userLocation != null
+                  ? () => _showOptionsPanel(context)
+                  : null,
+              child: Container(
+                margin: const EdgeInsets.all(6.0),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 5.0, vertical: 1.0),
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: highlightColor, // Change to your highlightColor
+                    width: 2.0,
+                  ),
+                  color:
+                      darkBackgroundColor, // Change to your darkBackgroundColor
+                  borderRadius: BorderRadius.circular(15),
+                  boxShadow: [
+                    BoxShadow(
+                      color: highlightColor
+                          .withOpacity(0.01), // Change to your highlightColor
+                      spreadRadius: 3,
+                      blurRadius: 3,
+                      offset: Offset(0, 1),
+                    ),
+                  ],
                 ),
-                color:
-                    darkBackgroundColor, // Change to your darkBackgroundColor
-                borderRadius: BorderRadius.circular(15),
-                boxShadow: [
-                  BoxShadow(
-                    color: highlightColor
-                        .withOpacity(0.01), // Change to your highlightColor
-                    spreadRadius: 3,
-                    blurRadius: 3,
-                    offset: Offset(0, 1),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: SvgPicture.asset(
-                      'assets/icons/locamap.svg',
-                      color: highlightColor,
-                      width: 24,
-                      height: 24,
-                    ),
-                    onPressed: () {},
-                  ),
-                  SizedBox(width: 8.0),
-                  Expanded(
-                    child: Text(
-                      selectedOption == 'global'
-                          ? 'Global'
-                          : (userLocation ?? 'Select Area'),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: SvgPicture.asset(
+                        'assets/icons/locamap.svg',
+                        color: highlightColor,
+                        width: 24,
+                        height: 24,
                       ),
-                      overflow: TextOverflow.ellipsis,
+                      onPressed: () {},
                     ),
-                  ),
-                  if (selectedOption != 'global')
-                    const Icon(
-                      Icons.keyboard_arrow_down_rounded,
-                      color: highlightColor,
+                    SizedBox(width: 8.0),
+                    Expanded(
+                      child: Text(
+                        selectedOption == 'global'
+                            ? 'Global'
+                            : (userLocation ?? 'Select Area'),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                ],
+                    if (selectedOption != 'global')
+                      const Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        color: highlightColor,
+                      ),
+                  ],
+                ),
               ),
             ),
-          ),
-          Expanded(
-            child: StreamBuilder<List<String>>(
-              stream: followingListStream,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(),
-                  );
-                }
+            Expanded(
+              child: FutureBuilder<void>(
+                future:
+                    _fetchPosts(), // This initiates fetching posts when the widget builds
+                builder: (context, snapshot) {
+                  // Show loading indicator until the first fetch is completed
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-                List<String> followingList = snapshot.data ?? [];
-                List<String> combinedList = [
-                  ...followingList,
-                  if (user != null) user!.uid
-                ];
-
-                if (combinedList.isEmpty) {
-                  return const Center(
-                    child: Text('No data available.'),
-                  );
-                }
-
-                return StreamBuilder(
-                  stream: FirebaseFirestore.instance
-                      .collection('posts')
-                      .snapshots(),
-                  builder: (
-                    context,
-                    AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>>
-                        postSnapshot,
-                  ) {
-                    if (postSnapshot.connectionState ==
-                        ConnectionState.waiting) {
-                      return const Center(
-                        child: CircularProgressIndicator(),
-                      );
-                    }
-
-                    List<DocumentSnapshot<Map<String, dynamic>>> filteredPosts =
-                        postSnapshot.data!.docs.where((post) {
-                      if (selectedOption == 'global') {
-                        return true; // Include all posts for global option
+                  // Once data is fetched, build the list
+                  return ListView.builder(
+                    controller:
+                        _scrollController, // Attach the scroll controller
+                    itemCount: _hasMorePosts
+                        ? _posts.length + 1
+                        : _posts
+                            .length, // Add one for the loading indicator if more posts are available
+                    itemBuilder: (context, index) {
+                      if (index >= _posts.length) {
+                        // Show loading indicator at the bottom
+                        return Center(child: CircularProgressIndicator());
                       }
 
-                      // Extract post latitude and longitude
-                      double postLatitude = post['latitude'] as double;
-                      double postLongitude = post['longitude'] as double;
+                      // Explicitly cast the DocumentSnapshot
+                      DocumentSnapshot<Map<String, dynamic>> post =
+                          _posts[index]
+                              as DocumentSnapshot<Map<String, dynamic>>;
 
-                      // Calculate distance from the user or selected area to the post
-                      double distance = calculateDistance(
-                        userLatitude,
-                        userLongitude,
-                        postLatitude,
-                        postLongitude,
-                      );
+                      bool shouldIncludePost = false;
+                      if (selectedOption == 'global') {
+                        shouldIncludePost =
+                            true; // Include all posts for global option
+                      } else {
+                        // Extract post latitude and longitude
+                        double postLatitude =
+                            post.data()?['latitude'] as double;
+                        double postLongitude =
+                            post.data()?['longitude'] as double;
 
-                      double distanceThreshold =
-                          selectedOption == 'visitArea' ? 5.0 : 1.0;
+                        // Calculate distance from the user or selected area to the post
+                        double distance = calculateDistance(
+                          userLatitude,
+                          userLongitude,
+                          postLatitude,
+                          postLongitude,
+                        );
 
-                      return distance <= distanceThreshold;
-                    }).toList();
+                        double distanceThreshold =
+                            selectedOption == 'visitArea' ? 5.0 : 1.0;
+                        shouldIncludePost = distance <= distanceThreshold;
+                      }
 
-                    return ListView.builder(
-                      cacheExtent: 1000,
-                      itemCount: filteredPosts.length,
-                      itemBuilder: (context, index) => PostCard(
-                        snap: filteredPosts[index].data(),
-                      ),
-                    );
-                  },
-                );
-              },
+                      if (shouldIncludePost) {
+                        // Use a FutureBuilder to wait for the post type name
+                        return FutureBuilder<String>(
+                          future: getPostTypeName(post.data()?['postType']),
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState ==
+                                ConnectionState.waiting) {
+                              return Center(child: CircularProgressIndicator());
+                            } else if (snapshot.hasError) {
+                              return Text('Error: ${snapshot.error}');
+                            } else if (snapshot.hasData) {
+                              // Now we can check the post type name
+                              if (snapshot.data == 'updates') {
+                                // If the post type is 'update', return a TextPostCard
+                                return TextPostCard(snap: post.data()!);
+                              } else {
+                                // For all other post types, return a PostCard
+                                return PostCard(snap: post.data()!);
+                              }
+                            } else {
+                              // If no data yet, show a placeholder or return an empty container
+                              return Container();
+                            }
+                          },
+                        );
+                      } else {
+                        return Container(); // Or any other placeholder if a post shouldn't be included
+                      }
+                    },
+                  );
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

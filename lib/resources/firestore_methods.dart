@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
@@ -8,6 +9,7 @@ import 'package:localink_sm/models/ARitem.dart';
 import 'package:localink_sm/models/UserContentInteraction.dart';
 import 'package:localink_sm/models/post.dart';
 import 'package:localink_sm/models/post_interaction.dart';
+import 'package:localink_sm/models/report.dart';
 import 'package:localink_sm/resources/auth_methods.dart';
 import 'package:localink_sm/resources/storage_methods.dart';
 import 'package:localink_sm/screens/login_screen.dart';
@@ -16,6 +18,7 @@ import 'package:uuid/uuid.dart';
 
 class FireStoreMethods {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
   RegExp regex = RegExp(r'\B#\w+');
   final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
   final StorageMethods _storageMethods = StorageMethods();
@@ -82,6 +85,49 @@ class FireStoreMethods {
     }
   }
 
+  Future<String> createTextPost(
+    String uid,
+    String caption,
+    String postTypeName,
+    double latitude,
+    double longitude,
+  ) async {
+    try {
+      FirebaseFirestore firestore = FirebaseFirestore.instance;
+
+      DocumentReference postTypeRef =
+          await _getPostTypeReferenceByName(postTypeName);
+
+      CollectionReference posts = firestore.collection('posts');
+
+      DocumentReference newPostRef = await posts.add({
+        'uid': uid,
+        'caption': caption,
+        'createdDatetime': FieldValue.serverTimestamp(),
+        'postType': postTypeRef,
+        'longitude': longitude,
+        'latitude': latitude,
+        'locationName': await LocationUtils.getAddressFromLatLng(
+          latitude,
+          longitude,
+        ),
+        'hashtags':
+            regex.allMatches(caption).map((match) => match.group(0)!).toList(),
+      });
+      String postId = newPostRef.id;
+
+      await newPostRef.update({
+        'id': postId,
+      });
+
+      // No call to _createPostMedia as it's a text-based post
+
+      return 'success';
+    } catch (e) {
+      return 'Error creating text post: $e';
+    }
+  }
+
   Future<DocumentReference> _getPostTypeReferenceByName(
       String postTypeName) async {
     try {
@@ -98,6 +144,88 @@ class FireStoreMethods {
       print('Error fetching post type reference: $e');
     }
     return FirebaseFirestore.instance.collection('postTypes').doc();
+  }
+
+  Future<String> savePost(
+    String userId,
+    String postId,
+    String postCreatorId,
+    String caption,
+    List<String>? hashtags,
+  ) async {
+    String res = "Some error occurred";
+    try {
+      CollectionReference savedCollection =
+          _firestore.collection('posts').doc(postId).collection('saved');
+
+      DocumentSnapshot savedDoc = await savedCollection.doc(userId).get();
+
+      if (savedDoc.exists) {
+        await savedCollection.doc(userId).delete();
+        res = "unsaved";
+        await _addPostToSaved(
+            userId, postId, postCreatorId, caption, hashtags, res);
+      } else {
+        Reaction reaction = Reaction(id: userId, postId: postId, uid: userId);
+        await savedCollection.doc(userId).set(reaction.toJson());
+        res = "saved";
+        await _addPostToSaved(
+            userId, postId, postCreatorId, caption, hashtags, res);
+      }
+    } catch (err) {
+      res = err.toString();
+    }
+    return res;
+  }
+
+  Future<void> _addPostToSaved(
+    String userId,
+    String postId,
+    String postCreatorId,
+    String caption,
+    List<String>? hashtags,
+    String action, // 'liked' or 'unliked'
+  ) async {
+    // Reference to an anchor document inside the 'interactions' subcollection of the user document
+    DocumentReference interactionDocRef = _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('interactions')
+        .doc(
+            'Interaction_data'); // This 'data' doc acts as an anchor for the 'saved' and 'comments' subcollections
+
+    // Direct reference to the 'saved' subcollection under the anchor document
+    CollectionReference likesCollection = interactionDocRef.collection('saved');
+
+    if (action == "saved") {
+      try {
+        // Prepare the save data
+        Map<String, dynamic> savedData = {
+          'userId': userId,
+          'postId': postId,
+          'postCreatorId': postCreatorId,
+          'caption': caption,
+          'hashtags': hashtags ?? [], //what to write here?,
+          'timestamp': FieldValue.serverTimestamp(),
+        };
+
+        // Add the saved post data to the 'saved' subcollection
+        await likesCollection.add(savedData);
+      } catch (e) {
+        print("Error adding like to user's interactions: $e");
+      }
+    } else if (action == "unsaved") {
+      try {
+        // Find and remove the saved post from the 'saved' subcollection
+        QuerySnapshot query =
+            await likesCollection.where('postId', isEqualTo: postId).get();
+        for (var doc in query.docs) {
+          await likesCollection.doc(doc.id).delete();
+        }
+      } catch (e) {
+        print("Error removing like from user's interactions: $e");
+      }
+    }
   }
 
   Future<String> likePost(
@@ -207,12 +335,46 @@ class FireStoreMethods {
   }
 
   Future<void> deletePost(String postId) async {
-    String res = "Some error occurred";
-
     try {
+      // If this works, the issue might be with listAll or the path structure.
+      // Step 1: Delete associated media from Firebase Storage
+      await _storage.ref('post_media/$postId').delete();
+
+      // Step 2: Delete subcollections (e.g., comments, postMedia)
+      // Note: As Firestore does not support deleting subcollections directly,
+      // you have to manually delete each document in the subcollections.
+      await deleteSubcollection('posts/$postId/comments');
+      await deleteSubcollection('posts/$postId/postMedia');
+      await deleteSubcollection('posts/$postId/reactions');
+
+      // Step 3: Finally, delete the post document itself
       await _firestore.collection('posts').doc(postId).delete();
     } catch (e) {
       print(e.toString());
+    }
+  }
+
+  Future<void> deleteSubcollection(String path) async {
+    final CollectionReference collectionRef = _firestore.collection(path);
+    const int batchSize = 10;
+
+    while (true) {
+      final QuerySnapshot snapshot = await collectionRef.limit(batchSize).get();
+      final List<DocumentSnapshot> docs = snapshot.docs;
+
+      if (docs.isEmpty) {
+        // If the subcollection is empty or doesn't exist, break the loop early.
+        break;
+      }
+
+      for (var doc in docs) {
+        await doc.reference.delete();
+      }
+
+      if (docs.length < batchSize) {
+        // If the last batch has less documents than the batchSize, it means we've reached the end.
+        break;
+      }
     }
   }
 
@@ -308,7 +470,7 @@ class FireStoreMethods {
       'content': content,
       'timestamp': FieldValue.serverTimestamp(),
       'type': messageType,
-       if (messageType == 'post') 'sharedPostId': sharedPostId,
+      if (messageType == 'post') 'sharedPostId': sharedPostId,
     };
 
     await _firestore
@@ -408,4 +570,33 @@ class FireStoreMethods {
       };
     }
   }
+
+  Future<String> createReport(String userId, String name,
+      Uint8List referencePhoto, String description) async {
+    String res = "Some error occurred";
+    try {
+      // Assuming you have a method to upload images and return the URL
+      String photoUrl = await StorageMethods()
+          .uploadImageToStorage('reportPhotos', referencePhoto, false);
+
+      String reportId = const Uuid().v1(); // Unique ID for the report
+
+      Report report = Report(
+        userId: userId,
+        name: name,
+        referencePhoto: photoUrl, // URL returned after uploading the photo
+        description: description,
+      );
+
+      FirebaseFirestore.instance
+          .collection('reports')
+          .doc(reportId)
+          .set(report.toJson());
+      res = "Success";
+    } catch (err) {
+      res = err.toString();
+    }
+    return res;
+  }
+  //gf
 }

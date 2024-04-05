@@ -67,34 +67,30 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Future<List<String>> fetchPostMediaUrls() async {
+    List<String> mediaUrls = [];
     try {
-      // Fetch the document from 'posts' collection based on uid
+      // Fetch documents from 'posts' collection based on uid
       QuerySnapshot postSnap = await FirebaseFirestore.instance
-          .collection('posts')
-          .where('uid', isEqualTo: widget.uid)
-          .get();
+        .collection('posts')
+        .where('uid', isEqualTo: widget.uid)
+        .orderBy('createdDatetime', descending: true) // Order posts by timestamp, newest first
+        .get();
 
-      if (postSnap.docs.isNotEmpty) {
-        // Retrieve the document ID of the first document
-        String postId = postSnap.docs.first.id;
-
-        // Query the 'postMedia' subcollection of the retrieved document
+      // Iterate through all the documents in the 'posts' collection
+      for (var postDoc in postSnap.docs) {
+        // Query the 'postMedia' subcollection of each document
         QuerySnapshot mediaSnap = await FirebaseFirestore.instance
             .collection('posts')
-            .doc(postId)
+            .doc(postDoc.id)
             .collection('postMedia')
             .get();
 
-        // Extract mediaUrls from 'mediaSnap' documents
-        List<String> mediaUrls =
+        // Extract mediaUrls from 'mediaSnap' documents and add them to the list
+        List<String> postMediaUrls =
             mediaSnap.docs.map((doc) => doc['mediaUrl'] as String).toList();
-
-        return mediaUrls;
-      } else {
-        // Handle the case where no document with the specified UID is found
-        print('No document found for UID: ${widget.uid}');
-        return [];
+        mediaUrls.addAll(postMediaUrls);
       }
+      return mediaUrls;
     } catch (err) {
       print('Error fetching post media: $err');
       return [];
@@ -109,7 +105,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     try {
       String userId = FirebaseAuth.instance.currentUser!.uid;
 
-      // If viewing someone else's profile, use the user ID from the widget
       if (widget.uid.isNotEmpty && widget.uid != userId) {
         userId = widget.uid;
       }
@@ -120,7 +115,6 @@ class _ProfileScreenState extends State<ProfileScreen>
           .get();
 
       if (userSnap.exists) {
-        // Assign the fetched user data to the 'user' variable
         user = model.User.fromSnap(userSnap);
       }
 
@@ -166,7 +160,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         backgroundColor: darkBackgroundColor,
         child: ListView(
           children: <Widget>[
-            const  SizedBox(
+            const SizedBox(
               height: 18,
             ),
             SvgPicture.asset(
@@ -232,11 +226,11 @@ class _ProfileScreenState extends State<ProfileScreen>
             ),
             //Activity
             InkWell(
-               onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => ActivityPage(),
-                    ),
-                  ),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => ActivityPage(),
+                ),
+              ),
               child: Container(
                 padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(),
@@ -244,11 +238,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                   mainAxisSize:
                       MainAxisSize.min, // Use as little space as possible
                   children: <Widget>[
-                     SvgPicture.asset(
+                    SvgPicture.asset(
                       'assets/icons/Profile_icons/Activity.svg',
                       height: 28,
                       color: primaryColor,
-                    ),// Icon color
+                    ), // Icon color
                     const SizedBox(width: 8), // Spacing between icon and text
                     Text('Your Activity',
                         style: TextStyle(color: Colors.white)), // Text style
@@ -271,11 +265,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                   mainAxisSize:
                       MainAxisSize.min, // Use as little space as possible
                   children: <Widget>[
-                     SvgPicture.asset(
+                    SvgPicture.asset(
                       'assets/icons/Profile_icons/QRCode.svg',
                       height: 28,
                       color: primaryColor,
-                    ),// Icon color
+                    ), // Icon color
                     const SizedBox(width: 8), // Spacing between icon and text
                     Text('QR Code',
                         style: TextStyle(color: Colors.white)), // Text style
@@ -298,7 +292,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   mainAxisSize:
                       MainAxisSize.min, // Use as little space as possible
                   children: <Widget>[
-                     SvgPicture.asset(
+                    SvgPicture.asset(
                       'assets/icons/Profile_icons/Verified.svg',
                       height: 28,
                       color: primaryColor,
@@ -329,7 +323,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                       'assets/icons/Profile_icons/CloseFriends.svg',
                       height: 28,
                       color: primaryColor,
-                    ),  // Icon color
+                    ), // Icon color
                     const SizedBox(width: 8), // Spacing between icon and text
                     Text('Close Friends',
                         style: TextStyle(color: Colors.white)), // Text style
@@ -352,7 +346,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   mainAxisSize:
                       MainAxisSize.min, // Use as little space as possible
                   children: <Widget>[
-                     SvgPicture.asset(
+                    SvgPicture.asset(
                       'assets/icons/Profile_icons/Archive.svg',
                       height: 28,
                       color: primaryColor,
@@ -364,7 +358,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 ),
               ),
             ),
-              const SizedBox(
+            const SizedBox(
               height: 10,
             ),
             //SignOut
@@ -388,7 +382,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   mainAxisSize:
                       MainAxisSize.min, // Use as little space as possible
                   children: <Widget>[
-                     SvgPicture.asset(
+                    SvgPicture.asset(
                       'assets/icons/Profile_icons/SignOut.svg',
                       height: 28,
                       color: primaryColor,
@@ -400,7 +394,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 ),
               ),
             ),
-            
+
             currentUser != null && currentUser.uid == allowedUserId
                 ? ListTile(
                     title: Text('Add Tester'),
@@ -718,7 +712,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                             ],
                             controller: _tabController,
                           ),
-                           SizedBox(
+                          SizedBox(
                             height: MediaQuery.of(context).size.height * 0.7,
                             child: TabBarView(
                               controller: _tabController,

@@ -112,7 +112,7 @@ class _MobileScreenLayoutState extends State<MobileScreenLayout> {
                   backgroundColor: primaryColor),
               BottomNavigationBarItem(
                   icon: SvgPicture.asset(
-                    'assets/icons/gamification.svg',
+                    'assets/icons/videoplayer.svg',
                     color: _page == 3 ? highlightColor : primaryColor,
                     width: 24,
                     height: 24,

@@ -14,63 +14,34 @@ import 'package:localink_sm/widgets/like_animation.dart';
 import 'package:video_player/video_player.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
-class PostCard extends StatefulWidget {
+class TextPostCard extends StatefulWidget {
   final snap;
 
-  const PostCard({Key? key, required this.snap}) : super(key: key);
+  const TextPostCard({Key? key, required this.snap}) : super(key: key);
 
   @override
-  State<PostCard> createState() => _PostCardState();
+  State<TextPostCard> createState() => _TextPostCardState();
 }
 
-class _PostCardState extends State<PostCard> {
-  late Future<List<String>> _mediaUrlsFuture; // Future for post media URLs
+class _TextPostCardState extends State<TextPostCard> {
   int commentLen = 0;
   bool isLikeAnimating = false;
   model.User? userData;
   List<String> reactions = [];
-  VideoPlayerController? _videoPlayerController;
-  bool _isMuted = true;
   late Stream<List<String>> followingListStream;
   final TextEditingController _messageController = TextEditingController();
   final FireStoreMethods _firestoreMethods = FireStoreMethods();
-
-  String? _postType;
   String? postId;
 
   @override
   void initState() {
     super.initState();
-    _fetchPostType();
     fetchUserData();
     followingListStream = _getUserFollowingList();
-
-    postId = widget.snap['id'];
-    if (widget.snap['mediaType'] == 'video') {
-      _videoPlayerController =
-          VideoPlayerController.networkUrl(widget.snap['mediaUrl'])
-            ..initialize().then((_) {
-              setState(() {});
-              _videoPlayerController!.setVolume(_isMuted ? 0 : 1);
-            });
-    }
     if (postId != null) {
       fetchReactions(postId!);
     }
     fetchCommentLen();
-
-    _mediaUrlsFuture = fetchPostMediaUrls(widget.snap);
-  }
-
-  void _fetchPostType() async {
-    DocumentReference postTypeRef = widget.snap['postType'];
-    DocumentSnapshot postTypeSnapshot = await postTypeRef.get();
-    if (mounted) {
-      setState(() {
-        _postType = postTypeSnapshot[
-            'postType_name']; // Correct field name as per your database
-      });
-    }
   }
 
   fetchUserData() async {
@@ -82,24 +53,6 @@ class _PostCardState extends State<PostCard> {
       setState(() {});
     } catch (err) {
       print('Error fetching user data: $err');
-    }
-  }
-
-  Future<List<String>> fetchPostMediaUrls(Map<String, dynamic> postMap) async {
-    try {
-      QuerySnapshot mediaSnap = await FirebaseFirestore.instance
-          .collection('posts')
-          .doc(postMap['id'])
-          .collection('postMedia')
-          .get();
-
-      List<String> mediaUrls =
-          mediaSnap.docs.map((doc) => doc['mediaUrl'] as String).toList();
-
-      return mediaUrls;
-    } catch (err) {
-      print('Error fetching post media: $err');
-      return [];
     }
   }
 
@@ -153,7 +106,7 @@ class _PostCardState extends State<PostCard> {
             text: caption.substring(currentIndex, startIndex),
             style: TextStyle(
               color: primaryColor,
-              fontSize: 12,
+              fontSize: 18,
             ),
           ),
         );
@@ -165,7 +118,7 @@ class _PostCardState extends State<PostCard> {
           text: caption.substring(startIndex, endIndex),
           style: TextStyle(
             color: highlightColor, // Color for hashtags
-            fontSize: 12,
+            fontSize: 15,
             decoration: TextDecoration.underline, // Underline for hashtags
           ),
         ),
@@ -181,86 +134,13 @@ class _PostCardState extends State<PostCard> {
           text: caption.substring(currentIndex),
           style: TextStyle(
             color: primaryColor,
-            fontSize: 12,
+            fontSize: 16,
           ),
         ),
       );
     }
 
     return spans;
-  }
-
-  void _initializeVideoPlayer(String mediaUrl) {
-    Uri mediaUri = Uri.parse(mediaUrl);
-    _videoPlayerController?.dispose();
-    _videoPlayerController = VideoPlayerController.networkUrl(mediaUri);
-
-    _videoPlayerController!.initialize().then((_) {
-      if (mounted) {
-        setState(() {});
-      }
-    }).catchError((error) {
-      print("Error initializing VideoPlayerController: $error");
-    });
-  }
-
-  Widget _buildImage(String mediaUrl) {
-    return Container(
-      height:
-          MediaQuery.of(context).size.height * 0.45, // Adjust size as needed
-      width: double.infinity,
-      decoration: BoxDecoration(
-        image: DecorationImage(
-          image: NetworkImage(mediaUrl),
-          fit: BoxFit.cover,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildVideoPlayer(String mediaUrl) {
-    // Ensure the controller is only initialized once or when the URL changes
-    if (_videoPlayerController == null ||
-        _videoPlayerController!.dataSource != mediaUrl) {
-      _videoPlayerController?.dispose();
-      // ignore: deprecated_member_use
-      _videoPlayerController = VideoPlayerController.network(mediaUrl)
-        ..initialize().then((_) {
-          if (mounted) {
-            setState(() {
-              // Video player initialized, UI needs to be updated
-            });
-            _videoPlayerController!.play();
-          }
-        }).catchError((error) {
-          print("Error initializing VideoPlayerController: $error");
-        });
-    }
-
-    return AspectRatio(
-      aspectRatio: _videoPlayerController?.value.isInitialized ?? false
-          ? _videoPlayerController!.value.aspectRatio
-          : 16 / 9,
-      child: _videoPlayerController?.value.isInitialized ?? false
-          ? Stack(
-              alignment: Alignment.bottomRight,
-              children: [
-                VideoPlayer(_videoPlayerController!),
-                IconButton(
-                  icon: Icon(_isMuted ? Icons.volume_off : Icons.volume_up),
-                  onPressed: () {
-                    if (mounted) {
-                      setState(() {
-                        _isMuted = !_isMuted;
-                        _videoPlayerController!.setVolume(_isMuted ? 0 : 1);
-                      });
-                    }
-                  },
-                ),
-              ],
-            )
-          : Center(child: CircularProgressIndicator()),
-    );
   }
 
   Stream<List<String>> _getUserFollowingList() async* {
@@ -574,27 +454,28 @@ class _PostCardState extends State<PostCard> {
                 ),
               ),
 
-            // Post picture
-            FutureBuilder(
-              future: _mediaUrlsFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return CircularProgressIndicator(); // Show loading indicator while fetching media URLs
-                } else if (snapshot.hasError) {
-                  return Text('Error fetching post media');
-                } else if (_postType == null) {
-                  return CircularProgressIndicator(); // Show loading indicator while fetching post type
-                } else {
-                  List<String> mediaUrls = snapshot.data as List<String>;
-                  return Column(
-                    children: mediaUrls.map((mediaUrl) {
-                      return _postType == 'videos'
-                          ? _buildVideoPlayer(mediaUrl)
-                          : _buildImage(mediaUrl);
-                    }).toList(),
-                  );
-                }
-              },
+            // Like, Comment, Share buttons
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.fromLTRB(10, 5, 15, 5),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                 
+                  SizedBox(
+                    height: 8,
+                  ),
+                  RichText(
+                    text: TextSpan(
+                      style: const TextStyle(
+                        color: primaryColor,
+                        fontSize: 12,
+                      ),
+                      children: _buildTextSpans(widget.snap['caption']),
+                    ),
+                  ),
+                ],
+              ),
             ),
 
             Row(
@@ -672,56 +553,18 @@ class _PostCardState extends State<PostCard> {
                       color: Colors.white,
                     ),
                     onPressed: () async {
-                     
-                      await FireStoreMethods().savePost(
+                     /*  await FireStoreMethods().savePost(
                         user!.uid,
                         widget.snap['id'],
                         widget.snap['uid'],
                         widget.snap['caption'],
                         widget.snap['hashtags'].cast<String>(),
-
-                      );
-
-
-                      
+                      ); */
                     },
                   ),
                 ))
               ],
             ),
-
-            // Like, Comment, Share buttons
-            Container(
-              width: double.infinity,
-              padding: EdgeInsets.fromLTRB(10, 5, 15, 5),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (userData != null)
-                    Text(
-                      userData!.username,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        color: primaryColor,
-                      ),
-                    ),
-                  SizedBox(
-                    height: 8,
-                  ),
-                  RichText(
-                    text: TextSpan(
-                      style: const TextStyle(
-                        color: primaryColor,
-                        fontSize: 12,
-                      ),
-                      children: _buildTextSpans(widget.snap['caption']),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
             // Display comment length
           ],
         ),

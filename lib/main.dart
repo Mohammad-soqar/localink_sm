@@ -1,11 +1,20 @@
+import 'dart:math';
+import 'dart:typed_data';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:localink_sm/models/report.dart';
 import 'package:localink_sm/providers/user_provider.dart';
+import 'package:localink_sm/resources/storage_methods.dart';
 import 'package:localink_sm/screens/login_screen.dart';
 import 'package:localink_sm/screens/signup_screen.dart';
 import 'package:mapbox_gl/mapbox_gl.dart';
 import 'package:provider/provider.dart';
+import 'package:sensors_plus/sensors_plus.dart';
+import 'package:uuid/uuid.dart';
 import 'firebase_options.dart';
 import 'package:localink_sm/responsive/mobile_screen_layout.dart';
 import 'package:localink_sm/responsive/responsive_layout_screen.dart';
@@ -23,8 +32,6 @@ Future<void> main() async {
 class MyApp extends StatelessWidget {
   const MyApp({Key? key});
 
-
-
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
@@ -36,36 +43,221 @@ class MyApp extends StatelessWidget {
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
         title: 'LocaLink',
-        theme: ThemeData.dark().copyWith(scaffoldBackgroundColor: darkBackgroundColor),
-        home: Builder(
-          builder: (context) => Scaffold(
-           
-            body: StreamBuilder(
-              stream: FirebaseAuth.instance.userChanges(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.active) {
-                  if (snapshot.hasData) {
-                    return const ResponsiveLayout(
-                      mobileScreenLayout: MobileScreenLayout(),
-                      webScreenLayout: WebScreenLayout(),
-                    );
-                  } else if (snapshot.hasError) {
-                    return Center(
-                      child: Text('${snapshot.error}'),
-                    );
-                  }
-                }
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(
-                      color: primaryColor,
-                    ),
-                  );
-                }
-                return const LoginScreen();
-              },
+        theme: ThemeData.dark()
+            .copyWith(scaffoldBackgroundColor: darkBackgroundColor),
+        home: Home(),
+      ),
+    );
+  }
+}
+
+class Home extends StatefulWidget {
+  @override
+  _HomeState createState() => _HomeState();
+}
+
+class _HomeState extends State<Home> {
+  double shakeThresholdGravity = 2.7;
+  int shakeSlopTimeMS = 500;
+  int shakeCountResetTime = 3000;
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _descriptionController = TextEditingController();
+  Uint8List? referencePhoto;
+
+  int mShakeTimestamp = DateTime.now().millisecondsSinceEpoch;
+  int shakeCount = 0;
+
+  Future<String> createReport(
+      String name, Uint8List referencePhoto, String description) async {
+    String res = "Some error occurred";
+    try {
+      final User? currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) {
+        res = "User not logged in";
+        return res;
+      }
+      String userId = currentUser.uid;
+      // Assuming you have a method to upload images and return the URL
+      String photoUrl = await StorageMethods()
+          .uploadImageToStorage('reportPhotos', referencePhoto, false);
+
+      String reportId = const Uuid().v1(); // Unique ID for the report
+
+      // Constructing the Report object. Make sure you have a Report class defined as per previous instructions
+      Report report = Report(
+        userId: userId,
+        name: name,
+        referencePhoto: photoUrl, // URL returned after uploading the photo
+        description: description,
+      );
+
+      // Save the report to Firestore
+      FirebaseFirestore.instance
+          .collection('reports')
+          .doc(reportId)
+          .set(report.toJson());
+      res = "Success";
+    } catch (err) {
+      res = err.toString();
+    }
+    return res;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    SensorsPlatform.instance.accelerometerEvents
+        .listen((AccelerometerEvent event) {
+      var x = event.x;
+      var y = event.y;
+      var z = event.z;
+
+      double gX = x / 9.80665;
+      double gY = y / 9.80665;
+      double gZ = z / 9.80665;
+      double gForce = sqrt(gX * gX + gY * gY + gZ * gZ);
+
+      if (gForce > shakeThresholdGravity) {
+        var now = DateTime.now().millisecondsSinceEpoch;
+
+        if (mShakeTimestamp + shakeSlopTimeMS > now) {
+          return;
+        }
+
+        if (mShakeTimestamp + shakeCountResetTime < now) {
+          shakeCount = 0;
+        }
+
+        mShakeTimestamp = now;
+        shakeCount++;
+
+        showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext dialogContext) {
+            return  AlertDialog(
+  backgroundColor: darkLBackgroundColor, // Set the background color here
+  title: Text(
+    'Report Issue',
+    style: TextStyle(color: highlightColor), // Adjusted for visibility against the new background
+  ),
+  content: SingleChildScrollView(
+    child: ListBody(
+      children: <Widget>[
+        TextFormField(
+          controller: _nameController,
+          decoration: InputDecoration(
+            hintText: "Enter your name",
+            hintStyle: TextStyle(color: primaryColor), // Adjusted for visibility
+            enabledBorder: UnderlineInputBorder(   
+              borderSide: BorderSide(color: primaryColor), // Adjusted for visibility
             ),
           ),
+        ),
+        SizedBox(height: 20),
+        TextFormField(
+          controller: _descriptionController,
+          decoration: InputDecoration(
+            hintText: "Describe the issue",
+            hintStyle: TextStyle(color: primaryColor), // Adjusted for visibility
+            enabledBorder: UnderlineInputBorder(   
+              borderSide: BorderSide(color: primaryColor), // Adjusted for visibility
+            ),
+          ),
+        ),
+        SizedBox(height: 20),
+        GestureDetector(
+          onTap: () async {
+            final ImagePicker _picker = ImagePicker();
+            final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+            if (image != null) {
+              final Uint8List imageData = await image.readAsBytes();
+              setState(() {
+                referencePhoto = imageData;
+              });
+            }
+          },
+          child: Container(
+            height: 50,
+            decoration: BoxDecoration(
+              color: primaryColor, // Adjusted for visibility
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: referencePhoto == null
+                ? Icon(Icons.add_a_photo, color: secondaryColor) // Adjusted for visibility
+                : Image.memory(referencePhoto!, fit: BoxFit.cover),
+          ),
+        ),
+      ],
+    ),
+  ),
+  actions: <Widget>[
+    TextButton(
+      child: Text(
+        'Cancel',
+        style: TextStyle(color: primaryColor), // Adjusted for visibility
+      ),
+      onPressed: () {
+        Navigator.of(dialogContext).pop();
+      },
+    ),
+    TextButton(
+      child: Text(
+        'Submit',
+        style: TextStyle(color: primaryColor), // Adjusted for visibility
+      ),
+      onPressed: () async {
+        if (_nameController.text.isNotEmpty &&
+            _descriptionController.text.isNotEmpty &&
+            referencePhoto != null) {
+          String result = await createReport(
+            _nameController.text,
+            referencePhoto!,
+            _descriptionController.text,
+          );
+
+          if (result == "Success") {
+          } else {}
+        } else {}
+
+        Navigator.of(dialogContext).pop();
+      },
+    ),
+  ],
+);
+
+          },
+        );
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Builder(
+      builder: (context) => Scaffold(
+        body: StreamBuilder(
+          stream: FirebaseAuth.instance.userChanges(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.active) {
+              if (snapshot.hasData) {
+                return const ResponsiveLayout(
+                  mobileScreenLayout: MobileScreenLayout(),
+                  webScreenLayout: WebScreenLayout(),
+                );
+              } else if (snapshot.hasError) {
+                return Center(
+                  child: Text('${snapshot.error}'),
+                );
+              }
+            }
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(
+                child: CircularProgressIndicator(),
+              );
+            }
+            return const LoginScreen();
+          },
         ),
       ),
     );

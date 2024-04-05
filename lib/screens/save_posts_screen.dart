@@ -2,49 +2,49 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:localink_sm/widgets/post_card.dart';
 
-class LikesPage extends StatefulWidget {
+class SavedPostsPage extends StatefulWidget {
   final String userId;
 
-  LikesPage({Key? key, required this.userId}) : super(key: key);
+  SavedPostsPage({Key? key, required this.userId}) : super(key: key);
 
   @override
-  _LikesPageState createState() => _LikesPageState();
+  _SavedPostsPageState createState() => _SavedPostsPageState();
 }
 
-class _LikesPageState extends State<LikesPage> {
+class _SavedPostsPageState extends State<SavedPostsPage> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final ScrollController _scrollController = ScrollController();
   final int _pageSize = 20; // Number of documents to fetch per page
   DocumentSnapshot? _lastDocument;
-  List<DocumentSnapshot> _likes = [];
-  bool _hasMoreLikes = true;
+  List<DocumentSnapshot> _savedPosts = [];
+  bool _hasMoreSavedPosts = true;
 
   @override
   void initState() {
     super.initState();
-    _fetchLikes();
+    _fetchSavedPosts();
 
     _scrollController.addListener(() {
       if (_scrollController.position.pixels ==
               _scrollController.position.maxScrollExtent &&
-          _hasMoreLikes) {
-        _fetchLikes();
+          _hasMoreSavedPosts) {
+        _fetchSavedPosts();
       }
     });
   }
 
-  Future<void> _fetchLikes() async {
-    if (!_hasMoreLikes) return;
+  Future<void> _fetchSavedPosts() async {
+    if (!_hasMoreSavedPosts) return;
 
     Query query = _firestore
         .collection('users')
         .doc(widget.userId)
         .collection('interactions')
         .doc('Interaction_data')
-        .collection('likes')
-        .orderBy('likedAt',
+        .collection('saved')
+        .orderBy('timestamp',
             descending:
-                true) // Assuming there's a 'timestamp' field to order by
+                true)
         .limit(_pageSize);
 
     if (_lastDocument != null) {
@@ -54,11 +54,11 @@ class _LikesPageState extends State<LikesPage> {
     QuerySnapshot querySnapshot = await query.get();
     if (querySnapshot.docs.isNotEmpty) {
       _lastDocument = querySnapshot.docs.last;
-      _likes.addAll(querySnapshot.docs);
+      _savedPosts.addAll(querySnapshot.docs);
     }
 
     if (querySnapshot.docs.length < _pageSize) {
-      _hasMoreLikes = false;
+      _hasMoreSavedPosts = false;
     }
 
     setState(() {});
@@ -68,7 +68,7 @@ class _LikesPageState extends State<LikesPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Likes'),
+        title: Text('Saved Posts'),
       ),
       body: GridView.builder(
         controller: _scrollController,
@@ -77,9 +77,9 @@ class _LikesPageState extends State<LikesPage> {
           crossAxisSpacing: 4.0,
           mainAxisSpacing: 4.0,
         ),
-        itemCount: _likes.length,
+        itemCount: _savedPosts.length,
         itemBuilder: (BuildContext context, int index) {
-          DocumentSnapshot likeSnapshot = _likes[index];
+          DocumentSnapshot likeSnapshot = _savedPosts[index];
           String postId = likeSnapshot['postId'];
 
           // Reference to the postMedia subcollection of the current post
@@ -104,22 +104,22 @@ class _LikesPageState extends State<LikesPage> {
                 // If no media is associated with the post, proceed to delete the corresponding like document
                 likeSnapshot.reference.delete().then((_) {
                   print(
-                      'Like document for postId $postId deleted successfully.');
+                      'Saved post document for postId $postId deleted successfully.');
                 }).catchError((error) {
-                  print('Error deleting like document: $error');
+                  print('Error deleting Saved post document: $error');
                 });
 
                 // Schedule a callback to remove the like from the list after the build process is complete
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (mounted) {
                     setState(() {
-                      _likes.removeAt(index);
+                      _savedPosts.removeAt(index);
                     });
                   }
                 });
 
                 // You might want to return a placeholder widget until the state is updated
-                return Center(child: Text('Removing like...'));
+                return Center(child: Text('Removing Saved post...'));
               }
 
               String mediaUrl = postMediaSnapshot.data!.docs.first['mediaUrl'];

@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:localink_sm/models/user.dart' as model;
 import 'package:localink_sm/screens/likes_history.dart';
+import 'package:localink_sm/screens/save_posts_screen.dart';
 import 'package:localink_sm/utils/colors.dart';
 
 class ActivityPage extends StatelessWidget {
@@ -35,6 +36,16 @@ class ActivityPage extends StatelessWidget {
                 'View and manage your interactions, content and account activity.',
                 style: TextStyle(color: Colors.grey),
               ),
+            ),
+            ListTile(
+              leading: Icon(Icons.bookmark, color: Colors.white),
+              title: Text('Saved Posts', style: TextStyle(color: Colors.white)),
+              trailing: Icon(Icons.chevron_right, color: Colors.white),
+              onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => SavedPostsPage(userId: currentUser!.uid,),
+                    ),
+                  ),
             ),
             ListTile(
               leading: Icon(Icons.favorite, color: Colors.white),

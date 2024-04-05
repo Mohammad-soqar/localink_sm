@@ -33,7 +33,7 @@ class Post {
       longitude: snapshot['longitude'],
       latitude: snapshot['latitude'],
       locationName: snapshot['locationName'],
-      hashtags: (snapshot['likes'] as List<dynamic>).cast<String>(),
+      hashtags: (snapshot['hashtags'] as List<dynamic>).cast<String>(),
     );
   }
 
