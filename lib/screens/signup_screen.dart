@@ -30,7 +30,7 @@ class _SignupScreenState extends State<SignupScreen> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _phonenumberController = TextEditingController();
   String? userLocation;
-  PhoneNumber? number; // Declare number as an instance variable
+  PhoneNumber? number;
 
   @override
   void initState() {
@@ -64,35 +64,36 @@ class _SignupScreenState extends State<SignupScreen> {
     await _getAddressFromLatLng(position.latitude, position.longitude);
   }
 
- Future<void> _getAddressFromLatLng(double latitude, double longitude) async {
-  try {
-    List<Placemark> placemarks = await placemarkFromCoordinates(latitude, longitude);
+  Future<void> _getAddressFromLatLng(double latitude, double longitude) async {
+    try {
+      List<Placemark> placemarks =
+          await placemarkFromCoordinates(latitude, longitude);
 
-    Placemark place = placemarks[0];
-    String address = '${place.isoCountryCode}';
+      Placemark place = placemarks[0];
+      String address = '${place.isoCountryCode}';
 
-    setState(() {
-      userLocation = address;
-      String? initialCountry = address;
-      
-      try {
-        PhoneNumber number = PhoneNumber(isoCode: address);
-        _setPhoneNumber(number);
-      } catch (phoneNumberError) {
-        print('Error creating PhoneNumber: $phoneNumberError');
-      }
-    });
-  } catch (e) {
-    print(e);
+      setState(() {
+        userLocation = address;
+        String? initialCountry = address;
+
+        try {
+          PhoneNumber number = PhoneNumber(isoCode: address);
+          _setPhoneNumber(number);
+        } catch (phoneNumberError) {
+          print('Error creating PhoneNumber: $phoneNumberError');
+        }
+      });
+    } catch (e) {
+      print(e);
+    }
   }
-}
 
-// Helper method to set the PhoneNumber instance variable
-void _setPhoneNumber(PhoneNumber phoneNumber) {
-  setState(() {
-    number = phoneNumber;
-  });
-}
+  void _setPhoneNumber(PhoneNumber phoneNumber) {
+    setState(() {
+      number = phoneNumber;
+    });
+  }
+
   Uint8List? _image;
   bool _isLoading = false;
 
@@ -129,9 +130,9 @@ void _setPhoneNumber(PhoneNumber phoneNumber) {
     if (res != 'success') {
       showSnackBar(res, context);
     } else {
-      Navigator.of(context).pushReplacement(MaterialPageRoute(
-          builder: (context) =>
-              VerifyEmailScreen())); // Navigate to VerifyEmailScreen
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => VerifyEmailScreen()),
+      ); // Navigate to VerifyEmailScreen
     }
   }
 
@@ -146,6 +147,15 @@ void _setPhoneNumber(PhoneNumber phoneNumber) {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: SvgPicture.asset(
+          'assets/logo-with-name-H.svg',
+          height: 20, // Adjust the size as needed
+        ),
+        centerTitle: true,
+        automaticallyImplyLeading:
+            false, // Prevents the AppBar from showing the back button automatically
+      ),
       body: SafeArea(
         child: Container(
           padding: EdgeInsets.symmetric(horizontal: 32),
@@ -154,7 +164,7 @@ void _setPhoneNumber(PhoneNumber phoneNumber) {
               Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
             //svg image
             Flexible(child: Container(), flex: 2),
-            SvgPicture.asset('assets/logo-with-name-H.svg', height: 50),
+
             const SizedBox(height: 24),
             //username
             Stack(
@@ -163,17 +173,17 @@ void _setPhoneNumber(PhoneNumber phoneNumber) {
                     ? CircleAvatar(
                         radius: 64,
                         backgroundImage: MemoryImage(_image!),
-                        backgroundColor: Colors.red,
+                        backgroundColor: highlightColor,
                       )
                     : const CircleAvatar(
                         radius: 64,
                         backgroundImage:
                             NetworkImage('https://i.stack.imgur.com/l60Hf.png'),
-                        backgroundColor: Colors.red,
+                        backgroundColor: highlightColor,
                       ),
                 Positioned(
-                  bottom: -10,
-                  left: 80,
+                  bottom: 0,
+                  left: 0,
                   child: IconButton(
                     onPressed: selectImage,
                     icon: const Icon(Icons.add_a_photo),
@@ -181,17 +191,96 @@ void _setPhoneNumber(PhoneNumber phoneNumber) {
                 )
               ],
             ),
-            TextFieldInput(
-                textEditingController: _usernameController,
-                hintText: 'Enter Your User Name',
-                textInputType: TextInputType.text),
             const SizedBox(height: 24),
 
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'User Name',
+                  style: TextStyle(
+                      color: primaryColor, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(
+                    height:
+                        8), // Provides spacing between the label and the input field.
+                TextField(
+                  controller: _usernameController,
+                  keyboardType: TextInputType.text,
+                  decoration: InputDecoration(
+                    hintText: 'Enter Your User Name',
+                    hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                    filled: true,
+                    fillColor: darkBackgroundColor,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 10),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10.0),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10.0),
+                      borderSide: BorderSide(color: highlightColor),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10.0),
+                      borderSide: BorderSide(color: highlightColor),
+                    ),
+                  ),
+                  style: const TextStyle(
+                    color: primaryColor,
+                  ),
+                  cursorColor: highlightColor,
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 24),
+
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Email Address',
+                  style: TextStyle(
+                      color: primaryColor, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(
+                    height:
+                        8), // Provides spacing between the label and the input field.
+                TextField(
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: InputDecoration(
+                    hintText: 'Enter Your Email',
+                    hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                    filled: true,
+                    fillColor: darkBackgroundColor,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 10),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10.0),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10.0),
+                      borderSide: BorderSide(color: highlightColor),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10.0),
+                      borderSide: BorderSide(color: highlightColor),
+                    ),
+                  ),
+                  style: const TextStyle(
+                    color: primaryColor,
+                  ),
+                  cursorColor: highlightColor,
+                ),
+              ],
+            ),
+
             //email
-            TextFieldInput(
-                textEditingController: _emailController,
-                hintText: 'Enter Your Email',
-                textInputType: TextInputType.emailAddress),
+
             const SizedBox(height: 24),
 
             //phone number
@@ -214,19 +303,87 @@ void _setPhoneNumber(PhoneNumber phoneNumber) {
               formatInput: true,
               keyboardType:
                   TextInputType.numberWithOptions(signed: true, decimal: true),
-              inputBorder: OutlineInputBorder(),
+              inputDecoration: InputDecoration(
+                hintText: 'Enter Your Phone Number',
+                hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                filled: true,
+                fillColor: darkBackgroundColor,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10.0),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10.0),
+                  borderSide: BorderSide(color: highlightColor),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10.0),
+                  borderSide: BorderSide(color: highlightColor),
+                ),
+                contentPadding: EdgeInsets.symmetric(
+                    horizontal: 20, vertical: 10), // Adjust as needed
+              ),
+              inputBorder: OutlineInputBorder(
+                borderSide: BorderSide(color: highlightColor),
+              ),
               onSaved: (PhoneNumber number) {
                 print('On Saved: $number');
               },
+              textStyle: TextStyle(
+                color: primaryColor,
+              ),
             ),
 
             const SizedBox(height: 24),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Password',
+                  style: TextStyle(
+                      color: primaryColor, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(
+                    height:
+                        8), // Provides spacing between the label and the input field.
+                TextField(
+                  controller: _passwordController,
+                  keyboardType: TextInputType.text,
+                  obscureText:
+                      true, // This ensures the text is obscured (for password inputs)
+                  decoration: InputDecoration(
+                    labelText: 'Password', // If you need a label like 'Title'
+                    hintText: 'Enter Your Password',
+                    hintStyle: TextStyle(color: primaryColor.withOpacity(0.5)),
+                    filled: true,
+                    fillColor: darkBackgroundColor,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10.0),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10.0),
+                      borderSide: BorderSide(color: highlightColor),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10.0),
+                      borderSide: BorderSide(color: highlightColor),
+                    ),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  ),
+                  style: TextStyle(color: primaryColor),
+                  cursorColor: highlightColor,
+                ),
+              ],
+            ),
+
             //password
-            TextFieldInput(
+            /*   TextFieldInput(
                 textEditingController: _passwordController,
                 isPass: true,
                 hintText: 'Enter Your Password',
-                textInputType: TextInputType.text),
+                textInputType: TextInputType.text), */
             const SizedBox(height: 24),
 
             //button login
