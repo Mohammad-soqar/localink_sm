@@ -4,15 +4,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:localink_sm/models/ARitem.dart';
-import 'package:localink_sm/models/UserContentInteraction.dart';
-import 'package:localink_sm/models/post.dart';
 import 'package:localink_sm/models/post_interaction.dart';
 import 'package:localink_sm/models/report.dart';
-import 'package:localink_sm/resources/auth_methods.dart';
 import 'package:localink_sm/resources/storage_methods.dart';
-import 'package:localink_sm/screens/login_screen.dart';
 import 'package:localink_sm/utils/location_utils.dart';
 import 'package:uuid/uuid.dart';
 
@@ -21,7 +16,6 @@ class FireStoreMethods {
   final FirebaseStorage _storage = FirebaseStorage.instance;
   RegExp regex = RegExp(r'\B#\w+');
   final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
-  final StorageMethods _storageMethods = StorageMethods();
 
   //upload post
 
@@ -34,7 +28,6 @@ class FireStoreMethods {
     double longitude,
   ) async {
     try {
-      String res = "Some error occurred";
       FirebaseFirestore firestore = FirebaseFirestore.instance;
 
       DocumentReference postTypeRef =
@@ -55,8 +48,8 @@ class FireStoreMethods {
         ),
         'hashtags':
             regex.allMatches(caption).map((match) => match.group(0)!).toList(),
-      });
-      String postId = newPostRef.id;
+      });  
+       String postId = newPostRef.id;
 
       await newPostRef.update({
         'id': postId,

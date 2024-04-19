@@ -38,6 +38,7 @@ class AuthMethods {
           password.isNotEmpty ||
           phonenumber.isNotEmpty ||
           username.isNotEmpty ||
+          // ignore: unnecessary_null_comparison
           file != null) {
         //register user
         UserCredential credential = await _auth.createUserWithEmailAndPassword(

@@ -10,6 +10,7 @@ import 'package:localink_sm/screens/edit_profile_screen.dart';
 import 'package:localink_sm/screens/login_screen.dart';
 import 'package:localink_sm/screens/chat.dart';
 import 'package:localink_sm/screens/profile_activity_screen.dart';
+import 'package:localink_sm/screens/users_online_screen.dart';
 import 'package:localink_sm/utils/colors.dart';
 import 'package:localink_sm/utils/utils.dart';
 import 'package:localink_sm/widgets/follow_button.dart';
@@ -71,10 +72,11 @@ class _ProfileScreenState extends State<ProfileScreen>
     try {
       // Fetch documents from 'posts' collection based on uid
       QuerySnapshot postSnap = await FirebaseFirestore.instance
-        .collection('posts')
-        .where('uid', isEqualTo: widget.uid)
-        .orderBy('createdDatetime', descending: true) // Order posts by timestamp, newest first
-        .get();
+          .collection('posts')
+          .where('uid', isEqualTo: widget.uid)
+          .orderBy('createdDatetime',
+              descending: true) // Order posts by timestamp, newest first
+          .get();
 
       // Iterate through all the documents in the 'posts' collection
       for (var postDoc in postSnap.docs) {
@@ -172,24 +174,26 @@ class _ProfileScreenState extends State<ProfileScreen>
             ),
             //Settings
             InkWell(
-              onTap: () {
-                // Your tap callback code
-              },
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => AdminDashboard(),
+                ),
+              ),
               child: Container(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: const BoxDecoration(),
                 child: Row(
-                  mainAxisSize:
-                      MainAxisSize.min, // Use as little space as possible
+                  mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
                     SvgPicture.asset(
                       'assets/icons/Profile_icons/Settings.svg',
                       height: 28,
                       color: primaryColor,
                     ),
-                    const SizedBox(width: 8), // Spacing between icon and text
-                    Text('Settings & Privacy',
-                        style: TextStyle(color: Colors.white)), // Text style
+                    const SizedBox(width: 8),
+                    const Text('Settings & Privacy',
+                        style: TextStyle(color: Colors.white)),
                   ],
                 ),
               ),
@@ -197,14 +201,12 @@ class _ProfileScreenState extends State<ProfileScreen>
             const SizedBox(
               height: 10,
             ),
-            //Insights
             InkWell(
-              onTap: () {
-                // Your tap callback code
-              },
+              onTap: () {},
               child: Container(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: const BoxDecoration(),
                 child: Row(
                   mainAxisSize:
                       MainAxisSize.min, // Use as little space as possible
@@ -212,10 +214,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                     SvgPicture.asset(
                       'assets/icons/Profile_icons/Insights.svg',
                       height: 28,
+                      // ignore: deprecated_member_use
                       color: primaryColor,
                     ),
                     const SizedBox(width: 8), // Spacing between icon and text
-                    Text('Insights',
+                    const Text('Insights',
                         style: TextStyle(color: Colors.white)), // Text style
                   ],
                 ),
@@ -228,12 +231,13 @@ class _ProfileScreenState extends State<ProfileScreen>
             InkWell(
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (context) => ActivityPage(),
+                  builder: (context) => const ActivityPage(),
                 ),
               ),
               child: Container(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: const BoxDecoration(),
                 child: Row(
                   mainAxisSize:
                       MainAxisSize.min, // Use as little space as possible
@@ -244,7 +248,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                       color: primaryColor,
                     ), // Icon color
                     const SizedBox(width: 8), // Spacing between icon and text
-                    Text('Your Activity',
+                    const Text('Your Activity',
                         style: TextStyle(color: Colors.white)), // Text style
                   ],
                 ),

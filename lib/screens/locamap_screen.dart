@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -12,8 +13,7 @@ import 'package:mapbox_gl/mapbox_gl.dart';
 import 'package:http/http.dart' as http;
 import 'dart:ui' as ui;
 import 'package:turf/turf.dart';
-
-
+import 'package:turf/turf.dart' as turf;
 
 class LocaMap extends StatefulWidget {
   const LocaMap({super.key});
@@ -107,8 +107,6 @@ class _LocaMapState extends State<LocaMap> {
           await mapController?.removeSymbol(_userSymbol!);
         }
 
-       
-
         _userSymbol = await mapController?.addSymbol(SymbolOptions(
           geometry:
               LatLng(currentLocation.latitude!, currentLocation.longitude!),
@@ -119,6 +117,15 @@ class _LocaMapState extends State<LocaMap> {
         mapController?.animateCamera(CameraUpdate.newLatLng(
           LatLng(currentLocation.latitude!, currentLocation.longitude!),
         ));
+
+        if (_userSymbol != null) {
+          // Now, call _addCircle to draw the 1km radius around the user's current location
+          _addCircle(
+            currentLocation.latitude!,
+            currentLocation.longitude!,
+            700, // radius in meters
+          );
+        }
 
         setState(() {
           userLocation = address;
@@ -131,7 +138,52 @@ class _LocaMapState extends State<LocaMap> {
     }
   }
 
+  void _addCircle(double latitude, double longitude, double radiusInMeters) {
+    List<LatLng> circlePoints = [];
 
+    int totalPoints = 60;
+
+    for (int i = 0; i < totalPoints; i++) {
+      double angle = (i * (360 / totalPoints)).toDouble();
+      LatLng point =
+          _calculateCoordinate(latitude, longitude, radiusInMeters, angle);
+      circlePoints.add(point);
+    }
+
+    circlePoints.add(circlePoints.first);
+
+    mapController?.addLine(LineOptions(
+      geometry: circlePoints,
+      lineColor: "#2AF89B",
+      lineWidth: 5.0,
+      lineOpacity: 1,
+    ));
+  }
+
+
+
+  LatLng _calculateCoordinate(
+      double latitude, double longitude, double radius, double angle) {
+    double earthRadius = 6371000; // in meters
+
+    double lat = latitude * pi / 180; // Convert to radians
+    double lon = longitude * pi / 180; // Convert to radians
+
+    double angularDistance =
+        radius / earthRadius; // Angular distance in radians
+    double trueCourse = angle * pi / 180; // Convert angle to radians
+
+    double newLat = asin(sin(lat) * cos(angularDistance) +
+        cos(lat) * sin(angularDistance) * cos(trueCourse));
+    double newLon = lon +
+        atan2(sin(trueCourse) * sin(angularDistance) * cos(lat),
+            cos(angularDistance) - sin(lat) * sin(newLat));
+
+    newLat = newLat * 180 / pi; // Convert back to degrees
+    newLon = newLon * 180 / pi; // Convert back to degrees
+
+    return LatLng(newLat, newLon);
+  }
 
   Future<ui.Image> loadImageFromAssets(String assetPath) async {
     ByteData data = await rootBundle.load(assetPath);
@@ -177,6 +229,7 @@ class _LocaMapState extends State<LocaMap> {
         await compositeImage.toByteData(format: ui.ImageByteFormat.png);
     return byteData!.buffer.asUint8List();
   }
+
 //ios: sk.eyJ1IjoibW9oYW1tYWRzb3FhcjEwMSIsImEiOiJjbHVkYzVrMzEwbjFpMmxuenpxM2Eybm5nIn0.S4pjUr0pwYqsJOzpJo73vQ
   @override
   Widget build(BuildContext context) {

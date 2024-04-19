@@ -53,10 +53,11 @@ class MyApp extends StatelessWidget {
 
 class Home extends StatefulWidget {
   @override
+  // ignore: library_private_types_in_public_api
   _HomeState createState() => _HomeState();
 }
 
-class _HomeState extends State<Home> {
+class _HomeState extends State<Home> with WidgetsBindingObserver{
   double shakeThresholdGravity = 2.7;
   int shakeSlopTimeMS = 500;
   int shakeCountResetTime = 3000;
@@ -106,6 +107,8 @@ class _HomeState extends State<Home> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+
     SensorsPlatform.instance.accelerometerEvents
         .listen((AccelerometerEvent event) {
       var x = event.x;
@@ -135,101 +138,131 @@ class _HomeState extends State<Home> {
           context: context,
           barrierDismissible: false,
           builder: (BuildContext dialogContext) {
-            return  AlertDialog(
-  backgroundColor: darkLBackgroundColor, // Set the background color here
-  title: Text(
-    'Report Issue',
-    style: TextStyle(color: highlightColor), // Adjusted for visibility against the new background
-  ),
-  content: SingleChildScrollView(
-    child: ListBody(
-      children: <Widget>[
-        TextFormField(
-          controller: _nameController,
-          decoration: InputDecoration(
-            hintText: "Enter your name",
-            hintStyle: TextStyle(color: primaryColor), // Adjusted for visibility
-            enabledBorder: UnderlineInputBorder(   
-              borderSide: BorderSide(color: primaryColor), // Adjusted for visibility
-            ),
-          ),
-        ),
-        SizedBox(height: 20),
-        TextFormField(
-          controller: _descriptionController,
-          decoration: InputDecoration(
-            hintText: "Describe the issue",
-            hintStyle: TextStyle(color: primaryColor), // Adjusted for visibility
-            enabledBorder: UnderlineInputBorder(   
-              borderSide: BorderSide(color: primaryColor), // Adjusted for visibility
-            ),
-          ),
-        ),
-        SizedBox(height: 20),
-        GestureDetector(
-          onTap: () async {
-            final ImagePicker _picker = ImagePicker();
-            final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
-            if (image != null) {
-              final Uint8List imageData = await image.readAsBytes();
-              setState(() {
-                referencePhoto = imageData;
-              });
-            }
-          },
-          child: Container(
-            height: 50,
-            decoration: BoxDecoration(
-              color: primaryColor, // Adjusted for visibility
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: referencePhoto == null
-                ? Icon(Icons.add_a_photo, color: secondaryColor) // Adjusted for visibility
-                : Image.memory(referencePhoto!, fit: BoxFit.cover),
-          ),
-        ),
-      ],
-    ),
-  ),
-  actions: <Widget>[
-    TextButton(
-      child: Text(
-        'Cancel',
-        style: TextStyle(color: primaryColor), // Adjusted for visibility
-      ),
-      onPressed: () {
-        Navigator.of(dialogContext).pop();
-      },
-    ),
-    TextButton(
-      child: Text(
-        'Submit',
-        style: TextStyle(color: primaryColor), // Adjusted for visibility
-      ),
-      onPressed: () async {
-        if (_nameController.text.isNotEmpty &&
-            _descriptionController.text.isNotEmpty &&
-            referencePhoto != null) {
-          String result = await createReport(
-            _nameController.text,
-            referencePhoto!,
-            _descriptionController.text,
-          );
+            return AlertDialog(
+              backgroundColor:
+                  darkLBackgroundColor, // Set the background color here
+              title: const Text(
+                'Report Issue',
+                style: TextStyle(
+                    color:
+                        highlightColor), // Adjusted for visibility against the new background
+              ),
+              content: SingleChildScrollView(
+                child: ListBody(
+                  children: <Widget>[
+                    TextFormField(
+                      controller: _nameController,
+                      decoration: const InputDecoration(
+                        hintText: "Enter your name",
+                        hintStyle: TextStyle(
+                            color: primaryColor), // Adjusted for visibility
+                        enabledBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(
+                              color: primaryColor), // Adjusted for visibility
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    TextFormField(
+                      controller: _descriptionController,
+                      decoration: const InputDecoration(
+                        hintText: "Describe the issue",
+                        hintStyle: TextStyle(
+                            color: primaryColor), // Adjusted for visibility
+                        enabledBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(
+                              color: primaryColor), // Adjusted for visibility
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    GestureDetector(
+                      onTap: () async {
+                        final ImagePicker picker = ImagePicker();
+                        final XFile? image =
+                            await picker.pickImage(source: ImageSource.gallery);
+                        if (image != null) {
+                          final Uint8List imageData = await image.readAsBytes();
+                          setState(() {
+                            referencePhoto = imageData;
+                          });
+                        }
+                      },
+                      child: Container(
+                        height: 50,
+                        decoration: BoxDecoration(
+                          color: primaryColor, // Adjusted for visibility
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: referencePhoto == null
+                            ? const Icon(Icons.add_a_photo,
+                                color:
+                                    secondaryColor) // Adjusted for visibility
+                            : Image.memory(referencePhoto!, fit: BoxFit.cover),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: <Widget>[
+                TextButton(
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(
+                        color: primaryColor), // Adjusted for visibility
+                  ),
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop();
+                  },
+                ),
+                TextButton(
+                  child: const Text(
+                    'Submit',
+                    style: TextStyle(
+                        color: primaryColor), // Adjusted for visibility
+                  ),
+                  onPressed: () async {
+                    if (_nameController.text.isNotEmpty &&
+                        _descriptionController.text.isNotEmpty &&
+                        referencePhoto != null) {
+                      String result = await createReport(
+                        _nameController.text,
+                        referencePhoto!,
+                        _descriptionController.text,
+                      );
 
-          if (result == "Success") {
-          } else {}
-        } else {}
+                      if (result == "Success") {
+                      } else {}
+                    } else {}
 
-        Navigator.of(dialogContext).pop();
-      },
-    ),
-  ],
-);
-
+                    // ignore: use_build_context_synchronously
+                    Navigator.of(dialogContext).pop();
+                  },
+                ),
+              ],
+            );
           },
         );
       }
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+
+    if (state == AppLifecycleState.resumed) {
+      userProvider.setUserOnline();
+    } else if (state == AppLifecycleState.paused) {
+      userProvider.setUserOffline();
+    }
   }
 
   @override

@@ -521,7 +521,7 @@ class _FeedScreenState extends State<FeedScreen> {
                         );
 
                         double distanceThreshold =
-                            selectedOption == 'visitArea' ? 5.0 : 1.0;
+                            selectedOption == 'visitArea' ? 0.7: 0.7;
                         shouldIncludePost = distance <= distanceThreshold;
                       }
 
