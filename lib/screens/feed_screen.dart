@@ -8,19 +8,14 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:localink_sm/models/user.dart' as model;
 import 'package:localink_sm/providers/user_provider.dart';
-import 'package:localink_sm/screens/add_post_screen.dart';
 import 'package:localink_sm/screens/chat_screen.dart';
-import 'package:localink_sm/screens/comment_screen.dart';
 import 'package:localink_sm/screens/create_post.dart';
-import 'package:localink_sm/screens/chat.dart';
-import 'package:localink_sm/screens/permission_test.dart';
-import 'package:localink_sm/screens/test.dart';
-import 'package:localink_sm/screens/verify_email_screen.dart';
 import 'package:localink_sm/utils/colors.dart';
+import 'package:localink_sm/utils/location_service.dart';
 import 'package:localink_sm/utils/location_utils.dart';
+import 'package:localink_sm/utils/service_locator.dart';
 import 'package:localink_sm/widgets/map-picker.dart';
 import 'package:localink_sm/widgets/post_card.dart';
-import 'package:geocoding/geocoding.dart';
 import 'package:localink_sm/widgets/updates_card.dart';
 import 'package:provider/provider.dart';
 
@@ -39,7 +34,7 @@ class _FeedScreenState extends State<FeedScreen> {
   double userLatitude = 0.0;
   double userLongitude = 0.0;
   bool _isFetchingPosts = false;
-  DocumentSnapshot? _lastDocument; // Last document from the last fetch
+  DocumentSnapshot? _lastDocument;
   List<DocumentSnapshot> _posts = []; // Posts to display
   bool _hasMorePosts = true; // Flag to check if more posts are available
 
@@ -137,11 +132,13 @@ class _FeedScreenState extends State<FeedScreen> {
         position.latitude,
         position.longitude,
       );
-      setState(() {
-        userLocation = address;
-        userLatitude = position.latitude;
-        userLongitude = position.longitude;
-      });
+      if (mounted) {
+        setState(() {
+          userLocation = address;
+          userLatitude = position.latitude;
+          userLongitude = position.longitude;
+        });
+      }
     } catch (e) {
       print('Error getting current position: $e');
     }
@@ -211,22 +208,24 @@ class _FeedScreenState extends State<FeedScreen> {
                       desiredAccuracy: LocationAccuracy.high);
                   String address = await LocationUtils.getAddressFromLatLng(
                       position.latitude, position.longitude);
-
-                  setState(() {
-                    selectedOption = 'currentLocation';
-                    userLocation = address;
-                    userLatitude = position.latitude;
-                    userLongitude = position.longitude;
-                  });
+                  if (mounted) {
+                    setState(() {
+                      selectedOption = 'currentLocation';
+                      userLocation = address;
+                      userLatitude = position.latitude;
+                      userLongitude = position.longitude;
+                    });
+                  }
                   Navigator.pop(context);
                 },
               ),
               ListTile(
                 title: Text('Global Content'),
                 onTap: () {
+                   if (mounted) {
                   setState(() {
                     selectedOption = 'global';
-                  });
+                  });}
                   Navigator.pop(context);
                 },
               ),
@@ -267,11 +266,12 @@ class _FeedScreenState extends State<FeedScreen> {
                 padding: EdgeInsets.all(20),
                 child: MapPickerWidget(
                   onLocationSelected: (LatLng selectedLocation) {
+                     if (mounted) {
                     setState(() {
                       selectedOption = 'visitArea';
                       userLatitude = selectedLocation.latitude;
                       userLongitude = selectedLocation.longitude;
-                    });
+                    });}
                     Navigator.of(context)
                         .pop(); // Close the dialog after selection
                   },
@@ -284,7 +284,7 @@ class _FeedScreenState extends State<FeedScreen> {
                   onTap: () {
                     Navigator.of(context).pop(); // Close the dialog
                   },
-                  child: CircleAvatar(
+                  child: const CircleAvatar(
                     child: Icon(Icons.close),
                     backgroundColor: Colors.red,
                   ),
@@ -345,6 +345,8 @@ class _FeedScreenState extends State<FeedScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final LocationService _locationService = locator<LocationService>();
+
     final model.User? user = Provider.of<UserProvider>(context).getUser;
     return Scaffold(
       appBar: AppBar(
@@ -384,6 +386,7 @@ class _FeedScreenState extends State<FeedScreen> {
                   icon: SvgPicture.asset(
                     'assets/icons/Navigation/add-post.svg',
                     height: 24,
+                    // ignore: deprecated_member_use
                     color: Colors.white,
                   ),
                   onPressed: () => Navigator.of(context).push(
@@ -413,6 +416,8 @@ class _FeedScreenState extends State<FeedScreen> {
         onRefresh: _refreshFeed,
         child: Column(
           children: [
+            /* Text(
+                "Current locations: Lat: ${_locationService.currentLocation?.latitude}, Long: ${_locationService.currentLocation?.longitude}"), */
             GestureDetector(
               onTap: userLocation != null
                   ? () => _showOptionsPanel(context)
@@ -493,7 +498,7 @@ class _FeedScreenState extends State<FeedScreen> {
                     itemBuilder: (context, index) {
                       if (index >= _posts.length) {
                         // Show loading indicator at the bottom
-                        return Center(child: CircularProgressIndicator());
+                        return Center(child: Container());
                       }
 
                       // Explicitly cast the DocumentSnapshot
@@ -521,7 +526,7 @@ class _FeedScreenState extends State<FeedScreen> {
                         );
 
                         double distanceThreshold =
-                            selectedOption == 'visitArea' ? 0.7: 0.7;
+                            selectedOption == 'visitArea' ? 0.7 : 0.7;
                         shouldIncludePost = distance <= distanceThreshold;
                       }
 
@@ -532,7 +537,7 @@ class _FeedScreenState extends State<FeedScreen> {
                           builder: (context, snapshot) {
                             if (snapshot.connectionState ==
                                 ConnectionState.waiting) {
-                              return Center(child: CircularProgressIndicator());
+                              return Center(child: Container());
                             } else if (snapshot.hasError) {
                               return Text('Error: ${snapshot.error}');
                             } else if (snapshot.hasData) {

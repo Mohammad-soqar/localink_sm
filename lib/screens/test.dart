@@ -391,3 +391,239 @@ class _PhotosPageState extends State<PhotosPage> {
 
 
  */
+
+
+/* import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_svg/svg.dart';
+import 'package:localink_sm/models/post.dart';
+import 'package:localink_sm/models/post_media.dart';
+import 'package:video_player/video_player.dart';
+
+class ReelsPage extends StatefulWidget {
+  @override
+  _ReelsPageState createState() => _ReelsPageState();
+}
+
+class _ReelsPageState extends State<ReelsPage> {
+  late PageController _pageController;
+  List<VideoPlayerController> _controllers = [];
+  List<PostMedia> _mediaList = [];
+  bool _isFetchingPosts = false;
+  DocumentSnapshot? _lastDocument; // Last document from the last fetch
+  List<Post> _posts = [];
+  bool _hasMorePosts = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+    _fetchPosts();
+  }
+
+  Future<void> _fetchPosts() async {
+    if (!_hasMorePosts || _isFetchingPosts) return;
+    _isFetchingPosts = true;
+
+    var postTypeSnapshot = await FirebaseFirestore.instance
+        .collection('postTypes')
+        .where('postType_name', isEqualTo: 'videos')
+        .limit(1)
+        .get();
+
+    if (postTypeSnapshot.docs.isEmpty) {
+      print('No postType found for videos');
+      _isFetchingPosts = false;
+      return;
+    }
+
+    DocumentReference videoTypeRef = postTypeSnapshot.docs.first.reference;
+
+    Query query = FirebaseFirestore.instance
+        .collection('posts')
+        .where('postType', isEqualTo: videoTypeRef)
+        .orderBy('createdDatetime', descending: true)
+        .limit(10);
+
+    if (_lastDocument != null) {
+      query = query.startAfterDocument(_lastDocument!);
+    }
+
+    String userId = FirebaseAuth.instance.currentUser!.uid;
+    var userSnap =
+        await FirebaseFirestore.instance.collection('users').doc(userId).get();
+    var followingList = userSnap.data()!['following'];
+    List<String> userFollowingList = List<String>.from(followingList);
+    userFollowingList.add(userId);
+
+    query = query.where('uid', whereIn: userFollowingList);
+
+    QuerySnapshot querySnapshot = await query.get();
+
+    _controllers = [];
+    for (var doc in querySnapshot.docs) {
+      var post = Post.fromSnap(doc);
+
+      // Fetch mediaUrl from the postMedia sub-collection
+      var mediaSnapshot = await FirebaseFirestore.instance
+          .collection('posts')
+          .doc(doc.id)
+          .collection('postMedia')
+          .limit(1) // Assuming there's one media per post
+          .get();
+
+      if (mediaSnapshot.docs.isNotEmpty) {
+        var mediaUrl = mediaSnapshot.docs.first.data()['mediaUrl'] as String;
+        
+
+        var controller = VideoPlayerController.network(mediaUrl);
+        controller.initialize().then((_) {
+          if (mounted) {
+            setState(() {});
+            controller.play();
+          }
+        }).catchError((e) {
+          print("Error initializing video player: $e");
+        });
+        _controllers.add(controller);
+      }
+    }
+
+    if (mounted) setState(() {});
+    _isFetchingPosts = false;
+  }
+
+  @override
+  void dispose() {
+    for (var controller in _controllers) {
+      controller.dispose();
+    }
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+ Widget build(BuildContext context) {
+  return Scaffold(
+    body: PageView.builder(
+      controller: _pageController,
+      scrollDirection: Axis.vertical, // Set scroll direction to vertical
+      itemCount: _controllers.length,
+      itemBuilder: (context, index) {
+        var controller = _controllers[index];
+        return controller.value.isInitialized
+            ? Stack(
+                children: <Widget>[
+                  VideoPlayer(controller),
+                  _buildBottomGradient(),
+                  _buildRightSideInteractionButtons(),
+                ],
+              )
+            : Center(child: CircularProgressIndicator());
+      },
+    ),
+  );
+}
+
+
+  Widget _buildBottomGradient() {
+    return Positioned.fill(
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: Container(
+          height: 200.0, // Adjust the height as needed
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.bottomCenter,
+              end: Alignment.topCenter,
+              colors: [Colors.black.withOpacity(0.7), Colors.transparent],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRightSideInteractionButtons() {
+    return Positioned(
+      right: 10,
+      bottom: 100,
+      child: Column(
+        children: [
+          IconButton(
+            icon: SvgPicture.asset(
+              'assets/icons/like.svg',
+              color: Colors.white,
+              height: 28,
+            ),
+            onPressed: () {},
+          ),
+          IconButton(
+            icon: SvgPicture.asset(
+              'assets/icons/comment.svg',
+              color: Colors.white,
+              height: 28,
+            ),
+            onPressed: () {},
+          ),
+          IconButton(
+            icon: SvgPicture.asset(
+              'assets/icons/share.svg',
+              color: Colors.white,
+              height: 28,
+            ),
+            onPressed: () {},
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottomVideoInfo(PostMedia media) {
+    return Positioned(
+      left: 10,
+      right: 10,
+      bottom: 40, // Distance from the bottom
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          const CircleAvatar(
+            backgroundImage: NetworkImage(
+                'https://via.placeholder.com/150'), // Replace with your network image or asset
+            radius: 15,
+          ),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '@the.paradise.club', // Replace with dynamic data
+                  style: TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  'Video description here...', // Replace with dynamic data
+                  style: TextStyle(color: Colors.white),
+                ),
+              ],
+            ),
+          ),
+          SvgPicture.asset(
+            'assets/icons/music_note.svg', // Use your own assets
+            color: Colors.white,
+            height: 20,
+          ),
+          const SizedBox(width: 5),
+          const Text(
+            'Tundra Beats - Feel Good', // Replace with dynamic data
+            style: TextStyle(color: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+}
+ */

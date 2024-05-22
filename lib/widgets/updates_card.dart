@@ -50,7 +50,9 @@ class _TextPostCardState extends State<TextPostCard> {
       DocumentSnapshot userSnapshot =
           await FirebaseFirestore.instance.collection('users').doc(uid).get();
       userData = model.User.fromSnap(userSnapshot);
+       if (mounted) {
       setState(() {});
+    }
     } catch (err) {
       print('Error fetching user data: $err');
     }
@@ -64,7 +66,9 @@ class _TextPostCardState extends State<TextPostCard> {
           .collection('comments')
           .get();
       commentLen = snap.docs.length;
+       if (mounted) {
       setState(() {});
+    }
     } catch (err) {
       print('Error fetching comment length: $err');
     }
@@ -179,7 +183,7 @@ class _TextPostCardState extends State<TextPostCard> {
               .get(),
           builder: (context, userSnapshot) {
             if (userSnapshot.connectionState == ConnectionState.waiting) {
-              return Center(child: CircularProgressIndicator());
+              return Center(child: Container());
             }
             if (!userSnapshot.hasData || userSnapshot.data!.data() == null) {
               return Center(child: Text("No following information available."));
@@ -217,7 +221,7 @@ class _TextPostCardState extends State<TextPostCard> {
                                 if (followingSnapshot.connectionState ==
                                     ConnectionState.waiting) {
                                   return Center(
-                                      child: CircularProgressIndicator());
+                                      child: Container());
                                 }
                                 if (!followingSnapshot.hasData ||
                                     followingSnapshot.data!.data() == null) {

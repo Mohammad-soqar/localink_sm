@@ -1,8 +1,9 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+/* import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
+import 'package:localink_sm/models/post_media.dart';
 import 'package:localink_sm/models/user.dart';
 import 'package:localink_sm/resources/firestore_methods.dart';
 import 'package:localink_sm/screens/comment_screen.dart';
@@ -14,22 +15,26 @@ import 'package:localink_sm/widgets/like_animation.dart';
 import 'package:video_player/video_player.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
-class PostCard extends StatefulWidget {
-  final snap;
+class VideoCard extends StatefulWidget {
+  final Map<String, dynamic> snap;
+  final VideoPlayerController? controller; // Accept controller from outside
+  final String thumbnailUrl; // Add this to accept a thumbnail URL
 
-  const PostCard({Key? key, required this.snap}) : super(key: key);
+  const VideoCard({Key? key, required this.snap, this.controller, required this.thumbnailUrl})
+      : super(key: key);
 
   @override
-  State<PostCard> createState() => _PostCardState();
+  State<VideoCard> createState() => _VideoCardState();
 }
 
-class _PostCardState extends State<PostCard> {
+class _VideoCardState extends State<VideoCard> {
   late Future<List<String>> _mediaUrlsFuture; // Future for post media URLs
   int commentLen = 0;
   bool isLikeAnimating = false;
   model.User? userData;
   List<String> reactions = [];
-  VideoPlayerController? _videoPlayerController;
+  late VideoPlayerController _videoPlayerController =
+      VideoPlayerController.network('');
   bool _isMuted = true;
   late Stream<List<String>> followingListStream;
   final TextEditingController _messageController = TextEditingController();
@@ -62,6 +67,18 @@ class _PostCardState extends State<PostCard> {
     _mediaUrlsFuture = fetchPostMediaUrls(widget.snap);
   }
 
+  @override
+  void didUpdateWidget(VideoCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      _videoPlayerController = widget.controller ??
+          VideoPlayerController.network(widget.snap['mediaUrl']);
+      if (widget.controller == null) {
+        _videoPlayerController.initialize().then((_) => setState(() {}));
+      }
+    }
+  }
+
   void _fetchPostType() async {
     DocumentReference postTypeRef = widget.snap['postType'];
     DocumentSnapshot postTypeSnapshot = await postTypeRef.get();
@@ -79,9 +96,7 @@ class _PostCardState extends State<PostCard> {
       DocumentSnapshot userSnapshot =
           await FirebaseFirestore.instance.collection('users').doc(uid).get();
       userData = model.User.fromSnap(userSnapshot);
-       if (mounted) {
       setState(() {});
-    }
     } catch (err) {
       print('Error fetching user data: $err');
     }
@@ -113,9 +128,7 @@ class _PostCardState extends State<PostCard> {
           .collection('comments')
           .get();
       commentLen = snap.docs.length;
-       if (mounted) {
       setState(() {});
-    }
     } catch (err) {
       print('Error fetching comment length: $err');
     }
@@ -208,34 +221,18 @@ class _PostCardState extends State<PostCard> {
     });
   }
 
-  Widget _buildImage(String mediaUrl) {
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.45, // Size from MediaQuery
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: darkBackgroundColor, // Placeholder color
-        image: mediaUrl.isNotEmpty
-            ? DecorationImage(
-                image: NetworkImage(mediaUrl),
-                fit: BoxFit.cover,
-              )
-            : null,
-      ),
-    );
-  }
-
   Widget _buildVideoPlayer(String mediaUrl) {
-    double videoHeight =
-        MediaQuery.of(context).size.height * 0.45; // Derived video height
-
     // Ensure the controller is only initialized once or when the URL changes
     if (_videoPlayerController == null ||
         _videoPlayerController!.dataSource != mediaUrl) {
       _videoPlayerController?.dispose();
+      // ignore: deprecated_member_use
       _videoPlayerController = VideoPlayerController.network(mediaUrl)
         ..initialize().then((_) {
           if (mounted) {
-            setState(() {});
+            setState(() {
+              // Video player initialized, UI needs to be updated
+            });
             _videoPlayerController!.play();
           }
         }).catchError((error) {
@@ -246,14 +243,31 @@ class _PostCardState extends State<PostCard> {
     return AspectRatio(
       aspectRatio: _videoPlayerController?.value.isInitialized ?? false
           ? _videoPlayerController!.value.aspectRatio
-          : MediaQuery.of(context).size.width / videoHeight,
+          : 16 / 9,
       child: _videoPlayerController?.value.isInitialized ?? false
-          ? VideoPlayer(_videoPlayerController!)
-          : Container(
-              height: videoHeight,
-              width: MediaQuery.of(context).size.width,
-              color: Colors.black, // Placeholder color
-            ),
+          ? Stack(
+              alignment: Alignment.bottomRight,
+              children: [
+                AspectRatio(
+                  aspectRatio: _videoPlayerController.value.isInitialized
+                      ? _videoPlayerController.value.aspectRatio
+                      : 16 / 9,
+                  child: VideoPlayer(_videoPlayerController),
+                ),
+                IconButton(
+                  icon: Icon(_isMuted ? Icons.volume_off : Icons.volume_up),
+                  onPressed: () {
+                    if (mounted) {
+                      setState(() {
+                        _isMuted = !_isMuted;
+                        _videoPlayerController!.setVolume(_isMuted ? 0 : 1);
+                      });
+                    }
+                  },
+                ),
+              ],
+            )
+          : Center(child: CircularProgressIndicator()),
     );
   }
 
@@ -293,7 +307,7 @@ class _PostCardState extends State<PostCard> {
               .get(),
           builder: (context, userSnapshot) {
             if (userSnapshot.connectionState == ConnectionState.waiting) {
-              return Center(child: Container());
+              return Center(child: CircularProgressIndicator());
             }
             if (!userSnapshot.hasData || userSnapshot.data!.data() == null) {
               return Center(child: Text("No following information available."));
@@ -330,7 +344,8 @@ class _PostCardState extends State<PostCard> {
                               builder: (context, followingSnapshot) {
                                 if (followingSnapshot.connectionState ==
                                     ConnectionState.waiting) {
-                                  return Center(child: Container());
+                                  return Center(
+                                      child: CircularProgressIndicator());
                                 }
                                 if (!followingSnapshot.hasData ||
                                     followingSnapshot.data!.data() == null) {
@@ -484,7 +499,7 @@ class _PostCardState extends State<PostCard> {
         vertical: 10,
       ),
       child: Container(
-        padding: EdgeInsets.symmetric(vertical: 3.0),
+        padding: EdgeInsets.symmetric(vertical: 15.0),
         margin: EdgeInsets.symmetric(vertical: 2.0),
         decoration: BoxDecoration(
           color: darkBackgroundColor,
@@ -492,227 +507,405 @@ class _PostCardState extends State<PostCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // User information
-
-            if (userData != null)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 4,
-                  horizontal: 1,
-                ).copyWith(right: 0),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundImage: NetworkImage(userData!.photoUrl),
-                        ),
-                        title: Text(userData!.username),
-                        subtitle: Row(
-                          children: [
-                            SvgPicture.asset(
-                              'assets/icons/locamap.svg',
-                              height: 13,
-                              color: highlightColor,
-                            ),
-                            SizedBox(
-                              width: 4,
-                            ),
-                            Text(
-                              widget.snap['locationName'],
-                              style: TextStyle(
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () {
-                        showDialog(
-                            context: context,
-                            builder: (context) => Dialog(
-                                  child: ListView(
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 16),
-                                    shrinkWrap: true,
-                                    children: widget.snap['uid'] == user!.uid
-                                        ? ['delete']
-                                            .map(
-                                              (e) => InkWell(
-                                                onTap: () async {
-                                                  FireStoreMethods().deletePost(
-                                                      widget.snap['id']);
-                                                  Navigator.of(context).pop();
-                                                },
-                                                child: Container(
-                                                  padding: const EdgeInsets
-                                                      .symmetric(
-                                                    vertical: 12,
-                                                    horizontal: 16,
-                                                  ),
-                                                  child: Text(e),
-                                                ),
-                                              ),
-                                            )
-                                            .toList()
-                                        : [],
-                                  ),
-                                ));
-                      },
-                      icon: Icon(Icons.more_vert),
-                    ),
-                  ],
-                ),
-              ),
-
             // Post picture
             FutureBuilder(
               future: _mediaUrlsFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return Container(); // No loading indicator
+                  return CircularProgressIndicator(); // Show loading indicator while fetching media URLs
                 } else if (snapshot.hasError) {
                   return Text('Error fetching post media');
                 } else if (_postType == null) {
-                  return Container(); // No loading indicator while fetching post type
+                  return CircularProgressIndicator(); // Show loading indicator while fetching post type
                 } else {
                   List<String> mediaUrls = snapshot.data as List<String>;
-                  return Column(
-                    children: mediaUrls.map((mediaUrl) {
-                      return _postType == 'videos'
-                          ? _buildVideoPlayer(mediaUrl)
-                          : _buildImage(mediaUrl);
-                    }).toList(),
+                  return Stack(
+                    children: <Widget>[
+                      ...mediaUrls.map((mediaUrl) {
+                        return _buildVideoPlayer(mediaUrl);
+                      }).toList(),
+                      _buildBottomGradient(),
+                      _buildRightSideInteractionButtons(),
+                      _buildBottomVideoInfo()
+                    ],
                   );
                 }
               },
             ),
 
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                LikeAnimation(
-                  isAnimating: reactions?.contains(user?.uid) ?? false,
-                  smallLike: true,
-                  child: IconButton(
-                    icon: reactions!.contains(user?.uid)
-                        ? SvgPicture.asset(
-                            'assets/icons/like.svg',
-                            height: 24,
-                            color: highlightColor,
-                          )
-                        : SvgPicture.asset(
-                            'assets/icons/like.svg',
-                            height: 24,
-                            color: Colors.white,
-                          ),
-                    onPressed: () async {
-                      setState(() {
-                        isLikeAnimating = true;
-                      });
+            // Display comment length
+          ],
+        ),
+      ),
+    );
+  }
 
-                      await FireStoreMethods().likePost(
-                        user!.uid,
-                        widget.snap['id'],
-                        widget.snap['uid'],
-                        widget.snap['hashtags'].cast<String>(),
-                      );
-
-                      fetchReactions(widget.snap['id']);
-
-                      setState(() {
-                        isLikeAnimating = false;
-                      });
-                    },
-                  ),
-                ),
-
-                // Comment button
-                IconButton(
-                  icon: SvgPicture.asset(
-                    'assets/icons/comment.svg',
-                    height: 24,
-                    color: Colors.white,
-                  ),
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => CommentsScreen(
-                        snap: widget.snap['id'].toString(),
-                      ),
-                    ),
-                  ),
-                ),
-
-                // Share button
-                IconButton(
-                  icon: SvgPicture.asset(
-                    'assets/icons/share.svg',
-                    height: 24,
-                    color: Colors.white,
-                  ),
-                  onPressed: _onShareButtonPressed, // Updated this line
-                ),
-
-                Expanded(
-                    child: Align(
-                  alignment: Alignment.bottomRight,
-                  child: IconButton(
-                    icon: SvgPicture.asset(
-                      'assets/icons/save.svg',
-                      height: 24,
-                      color: Colors.white,
-                    ),
-                    onPressed: () async {
-                      await FireStoreMethods().savePost(
-                        user!.uid,
-                        widget.snap['id'],
-                        widget.snap['uid'],
-                        widget.snap['caption'],
-                        widget.snap['hashtags'].cast<String>(),
-                      );
-                    },
-                  ),
-                ))
-              ],
+  Widget _buildBottomGradient() {
+    return Positioned.fill(
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: Container(
+          height: 200.0, // Adjust the height as needed
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.bottomCenter,
+              end: Alignment.topCenter,
+              colors: [Colors.black.withOpacity(0.7), Colors.transparent],
             ),
+          ),
+        ),
+      ),
+    );
+  }
 
-            // Like, Comment, Share buttons
-            Container(
-              width: double.infinity,
-              padding: EdgeInsets.fromLTRB(10, 5, 15, 5),
+  Widget _buildRightSideInteractionButtons() {
+    return Positioned(
+      right: 10,
+      bottom: 100,
+      child: Column(
+        children: [
+          IconButton(
+            icon: SvgPicture.asset(
+              'assets/icons/like.svg',
+              color: Colors.white,
+              height: 28,
+            ),
+            onPressed: () {},
+          ),
+          IconButton(
+            icon: SvgPicture.asset(
+              'assets/icons/comment.svg',
+              color: Colors.white,
+              height: 28,
+            ),
+            onPressed: () {},
+          ),
+          IconButton(
+            icon: SvgPicture.asset(
+              'assets/icons/share.svg',
+              color: Colors.white,
+              height: 28,
+            ),
+            onPressed: () {},
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottomVideoInfo() {
+    return Positioned(
+      left: 10,
+      right: 10,
+      bottom: 40,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (userData != null) ...[
+            CircleAvatar(
+              backgroundImage: NetworkImage(userData!.photoUrl),
+              radius: 15,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (userData != null)
-                    Text(
-                      userData!.username,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        color: primaryColor,
-                      ),
-                    ),
-                  SizedBox(
-                    height: 8,
+                  Text(
+                    userData!.username,
+                    style: TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.bold),
                   ),
+                  // Assuming _buildTextSpans is correctly implemented
                   RichText(
                     text: TextSpan(
-                      style: const TextStyle(
-                        color: primaryColor,
-                        fontSize: 12,
-                      ),
                       children: _buildTextSpans(widget.snap['caption']),
                     ),
                   ),
                 ],
               ),
             ),
-
-            // Display comment length
+            const SizedBox(width: 5),
+            const Text('Tundra Beats - Feel Good',
+                style: TextStyle(color: Colors.white)),
           ],
+        ],
+      ),
+    );
+  }
+}
+ */
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:localink_sm/models/user.dart' as model;
+import 'package:localink_sm/utils/colors.dart';
+import 'package:video_player/video_player.dart';
+
+class VideoCard extends StatefulWidget {
+  final Map<String, dynamic> snap;
+  final VideoPlayerController? controller;
+  final String thumbnailUrl;
+
+  const VideoCard(
+      {Key? key,
+      required this.snap,
+      this.controller,
+      required this.thumbnailUrl})
+      : super(key: key);
+
+  @override
+  State<VideoCard> createState() => _VideoCardState();
+}
+
+class _VideoCardState extends State<VideoCard> {
+  late VideoPlayerController _controller;
+  bool _isInitialized = false;
+  model.User? userData;
+  bool _isMuted = true;
+
+  @override
+  void initState() {
+    super.initState();
+
+    if (widget.controller != null) {     
+
+      _controller = widget.controller!;
+    } else {
+      _controller = VideoPlayerController.network(widget.snap['mediaUrl']);
+    }
+
+    _controller.addListener(_checkInitialization);
+    _controller.initialize().then((_) async {
+      await fetchUserData();
+      if (mounted) {
+        setState(() {
+          _isInitialized = true;
+        });
+
+        _controller.play(); // Ensure the video plays when initialized
+      }
+    });
+  }
+
+  Future<void> _checkInitialization() async {
+    if (_controller.value.isInitialized && !_controller.value.isPlaying) {
+
+      _controller.play(); // Auto-play the video once it is initialized
+    }
+  }
+
+  fetchUserData() async {
+    try {
+      dynamic uid = widget.snap['uid'];
+      DocumentSnapshot userSnapshot =
+          await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      userData = model.User.fromSnap(userSnapshot);
+      setState(() {});
+    } catch (err) {
+      print('Error fetching user data: $err');
+    }
+  }
+
+  List<TextSpan> _buildTextSpans(String caption) {
+    List<TextSpan> spans = [];
+
+    RegExp regex = RegExp(r'\#\w+'); // Regex to match hashtags
+
+    int currentIndex = 0;
+
+    for (RegExpMatch match in regex.allMatches(caption)) {
+      int startIndex = match.start;
+      int endIndex = match.end;
+
+      // Add the text before the hashtag
+      if (startIndex > currentIndex) {
+        spans.add(
+          TextSpan(
+            text: caption.substring(currentIndex, startIndex),
+            style: TextStyle(
+              color: primaryColor,
+              fontSize: 12,
+            ),
+          ),
+        );
+      }
+
+      // Add the hashtag with custom styling
+      spans.add(
+        TextSpan(
+          text: caption.substring(startIndex, endIndex),
+          style: TextStyle(
+            color: highlightColor, // Color for hashtags
+            fontSize: 12,
+            decoration: TextDecoration.underline, // Underline for hashtags
+          ),
         ),
+      );
+
+      currentIndex = endIndex;
+    }
+
+    // Add the remaining text if any
+    if (currentIndex < caption.length) {
+      spans.add(
+        TextSpan(
+          text: caption.substring(currentIndex),
+          style: TextStyle(
+            color: primaryColor,
+            fontSize: 12,
+          ),
+        ),
+      );
+    }
+
+    return spans;
+  }
+
+  void _toggleMute() {
+    setState(() {
+      if (_controller.value.volume == 0) {
+        _controller.setVolume(1.0);
+        _isMuted = false;
+      } else {
+        _controller.setVolume(0);
+        _isMuted = true;
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+        onTap: _toggleMute,
+        child: Stack(
+          children: <Widget>[
+            Container(
+              alignment: Alignment.center,
+              child: _controller.value.isInitialized
+                  ? Align(
+                      alignment: Alignment
+                          .bottomCenter, // Align the video to the bottom
+                      child: AspectRatio(
+                          aspectRatio: _controller.value.aspectRatio,
+                          child: VideoPlayer(_controller)))
+                  : Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Image.network(widget.thumbnailUrl, fit: BoxFit.cover),
+                        const CircularProgressIndicator(),
+                      ],
+                    ),
+            ),
+            _buildBottomGradient(),
+            _buildRightSideInteractionButtons(),
+            _buildBottomVideoInfo()
+          ],
+        ));
+  }
+
+  @override
+  void dispose() {
+    if (widget.controller == null) {
+      // Only dispose the controller if it was initialized in this widget
+      _controller.dispose();
+    }
+    super.dispose();
+  }
+
+  Widget _buildBottomGradient() {
+    return Positioned.fill(
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: Container(
+          height: 200.0, // Adjust the height as needed
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.bottomCenter,
+              end: Alignment.topCenter,
+              colors: [Colors.black.withOpacity(0.7), Colors.transparent],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRightSideInteractionButtons() {
+    return Positioned(
+      right: 10,
+      bottom: 100,
+      child: Column(
+        children: [
+          IconButton(
+            icon: SvgPicture.asset(
+              'assets/icons/like.svg',
+              color: Colors.white,
+              height: 28,
+            ),
+            onPressed: () {},
+          ),
+          IconButton(
+            icon: SvgPicture.asset(
+              'assets/icons/comment.svg',
+              color: Colors.white,
+              height: 28,
+            ),
+            onPressed: () {},
+          ),
+          IconButton(
+            icon: SvgPicture.asset(
+              'assets/icons/share.svg',
+              color: Colors.white,
+              height: 28,
+            ),
+            onPressed: () {},
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottomVideoInfo() {
+    return Positioned(
+      left: 10,
+      right: 10,
+      bottom: 40,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (userData != null) ...[
+            CircleAvatar(
+              backgroundImage: NetworkImage(userData!.photoUrl),
+              radius: 15,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    userData!.username,
+                    style: TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                  // Assuming _buildTextSpans is correctly implemented
+                  RichText(
+                    text: TextSpan(
+                      children: _buildTextSpans(widget.snap['caption']),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 5),
+            const Text('Tundra Beats - Feel Good',
+                style: TextStyle(color: Colors.white)),
+          ],
+        ],
       ),
     );
   }

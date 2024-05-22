@@ -11,6 +11,10 @@ class User {
   final DateTime? lastUsernameChangeDate;
   final int emailChangeCount;
   final List<DateTime> emailChangeDates;
+  final bool isBusinessAccount;
+  final String? businessCategory;
+  final String? bio;
+  final String? link;
 
   const User({
     required this.username,
@@ -23,6 +27,10 @@ class User {
     this.lastUsernameChangeDate,
     this.emailChangeCount = 0,
     this.emailChangeDates = const [],
+    this.isBusinessAccount = false,
+    this.businessCategory,
+    this.bio,
+    this.link,
   });
 
   static User fromSnap(DocumentSnapshot snap) {
@@ -54,6 +62,10 @@ class User {
       lastUsernameChangeDate: parseDate(snapshot['lastUsernameChangeDate']),
       emailChangeCount: snapshot['emailChangeCount'] ?? 0,
       emailChangeDates: parseDateList(snapshot['emailChangeDates'] ?? []),
+      isBusinessAccount: snapshot['isBusinessAccount'] ?? false,
+      businessCategory: snapshot['businessCategory'],
+      bio: snapshot['bio'],
+      link: snapshot['link'],
     );
   }
 
@@ -76,6 +88,10 @@ class User {
       "lastUsernameChangeDate": lastUsernameChangeTimestamp,
       "emailChangeCount": emailChangeCount,
       "emailChangeDates": emailChangeTimestamps,
+      "isBusinessAccount": isBusinessAccount,
+      "businessCategory": businessCategory,
+      "bio": bio, 
+      "link": link, 
     };
   }
 }

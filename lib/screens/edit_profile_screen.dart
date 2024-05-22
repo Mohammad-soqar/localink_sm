@@ -19,12 +19,18 @@ class _EditProfilePageState extends State<EditProfilePage> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _bioController = TextEditingController();
+  final TextEditingController _linkController = TextEditingController();
+  final TextEditingController _businessCategoryController =
+      TextEditingController();
+  final TextEditingController _businessDescriptionController =
+      TextEditingController();
   late model.User _currentUser;
   bool _isUsernameEditable = true;
   bool _isEmailEditable = true;
+  bool isBusinessAccount = false;
   String _userPhotoUrl = '';
   var userData = {};
-
   File? _image;
   final picker = ImagePicker();
 
@@ -32,6 +38,29 @@ class _EditProfilePageState extends State<EditProfilePage> {
   void initState() {
     super.initState();
     getCurrentUser();
+  }
+
+  void showSnackBar(String content, BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(content)),
+    );
+  }
+
+  Future<void> deleteImageFromStorage(String imageUrl) async {
+    final FirebaseStorage storage = FirebaseStorage.instance;
+
+    String? storagePath = imageUrl.split('?').first;
+    storagePath = storagePath.split('o/').last;
+    storagePath = Uri.decodeComponent(storagePath);
+
+    try {
+      Reference ref = storage.ref().child(storagePath);
+      await ref.delete();
+      print("Old image deleted successfully.");
+    } catch (e) {
+      print("Error deleting old image: $e");
+      throw e;
+    }
   }
 
   Future<void> getCurrentUser() async {
@@ -49,7 +78,12 @@ class _EditProfilePageState extends State<EditProfilePage> {
         _usernameController.text = _currentUser.username;
         _emailController.text = _currentUser.email;
         _phoneController.text = _currentUser.phonenumber;
+        _bioController.text = _currentUser.bio ?? '';
+        _linkController.text = _currentUser.link ?? '';
         _userPhotoUrl = _currentUser.photoUrl;
+        isBusinessAccount = _currentUser.isBusinessAccount;
+        _businessCategoryController.text = _currentUser.businessCategory ?? '';
+
         _isUsernameEditable =
             canUsernameBeEdited(_currentUser.lastUsernameChangeDate);
         _isEmailEditable = canEmailBeEdited(_currentUser.emailChangeCount);
@@ -77,7 +111,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
   }
 
   Future<void> saveProfileChanges() async {
-    // Assuming _currentUser is your current user object
     User? firebaseUser = FirebaseAuth.instance.currentUser;
     if (firebaseUser == null) {
       showSnackBar("User not found. Please login again.", context);
@@ -89,14 +122,12 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
     Map<String, dynamic> updates = {};
 
-    // Check for username changes and constraints
     if (_usernameController.text.trim() != _currentUser.username &&
         canUsernameBeEdited(_currentUser.lastUsernameChangeDate)) {
       updates['username'] = _usernameController.text.trim();
       updates['lastUsernameChangeDate'] = Timestamp.now();
     }
 
-    // Check for email changes and constraints
     if (_emailController.text.trim() != _currentUser.email &&
         canEmailBeEdited(_currentUser.emailChangeCount)) {
       updates['email'] = _emailController.text.trim();
@@ -104,41 +135,26 @@ class _EditProfilePageState extends State<EditProfilePage> {
       updates['emailChangeDates'] = FieldValue.arrayUnion([Timestamp.now()]);
     }
 
-    // Check for phone number changes
     if (_phoneController.text.trim() != _currentUser.phonenumber) {
       updates['phonenumber'] = _phoneController.text.trim();
     }
 
-    // Upload new profile picture if selected
-    if (_image != null) {
-      Uint8List imageData = await _image!.readAsBytes();
-
-      // Assuming the old image's path is stored in the user's 'photoUrl' field
-      String? oldImageUrl = _currentUser.photoUrl;
-
-      if (oldImageUrl != null && oldImageUrl.isNotEmpty) {
-        // Delete the old image from Firebase Storage
-        try {
-          await deleteImageFromStorage(oldImageUrl);
-        } catch (e) {
-          showSnackBar("Failed to delete old image: $e", context);
-          // Optionally, return if you want to halt the update when deletion fails
-          return;
-        }
-      }
-
-      // Upload the new image and update the user's profile
-      try {
-        String imageUrl = await StorageMethods()
-            .uploadImageToStorage('profile_pictures', imageData, false);
-        updates['photoUrl'] = imageUrl;
-      } catch (e) {
-        showSnackBar("Failed to upload new image: $e", context);
-        return;
-      }
+    if (_bioController.text.trim() != _currentUser.bio) {
+      updates['bio'] = _bioController.text.trim();
     }
 
-    // Apply updates if any
+    if (_linkController.text.trim() != _currentUser.link) {
+      updates['link'] = _linkController.text.trim();
+    }
+
+    if (_businessCategoryController.text.trim() !=
+        _currentUser.businessCategory) {
+      updates['businessCategory'] = _businessCategoryController.text.trim();
+    }
+
+    if (isBusinessAccount != _currentUser.isBusinessAccount) {
+      updates['isBusinessAccount'] = isBusinessAccount;
+    }
     if (updates.isNotEmpty) {
       try {
         await userDocRef.update(updates);
@@ -149,29 +165,36 @@ class _EditProfilePageState extends State<EditProfilePage> {
     } else {
       showSnackBar("No changes detected.", context);
     }
-  }
 
-  Future<void> deleteImageFromStorage(String imageUrl) async {
-    final FirebaseStorage storage = FirebaseStorage.instance;
+    if (_image != null) {
+      Uint8List imageData = await _image!.readAsBytes();
 
-    String? storagePath = imageUrl.split('?').first;
-    storagePath = storagePath.split('o/').last;
-    storagePath = Uri.decodeComponent(storagePath);
+      String? oldImageUrl = _currentUser.photoUrl;
 
-    try {
-      Reference ref = storage.ref().child(storagePath);
-      await ref.delete();
-      print("Old image deleted successfully.");
-    } catch (e) {
-      print("Error deleting old image: $e");
-      throw e; 
+      if (oldImageUrl != null && oldImageUrl.isNotEmpty) {
+        try {
+          await deleteImageFromStorage(oldImageUrl);
+        } catch (e) {
+          showSnackBar("Failed to delete old image: $e", context);
+          return;
+        }
+      }
+
+      try {
+        String imageUrl = await StorageMethods()
+            .uploadImageToStorage('profile_pictures', imageData, false);
+        updates['photoUrl'] = imageUrl;
+      } catch (e) {
+        showSnackBar("Failed to upload new image: $e", context);
+        return;
+      }
     }
   }
 
-  void showSnackBar(String content, BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(content)),
-    );
+  void switchToBusinessAccount() {
+    setState(() {
+      isBusinessAccount = !isBusinessAccount;
+    });
   }
 
   @override
@@ -211,27 +234,68 @@ class _EditProfilePageState extends State<EditProfilePage> {
             ),
           ),
           const SizedBox(height: 20),
+          Text("Personal Information",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 10),
           TextFormField(
             controller: _usernameController,
             decoration: InputDecoration(labelText: 'Username'),
             enabled: _isUsernameEditable,
           ),
-          SizedBox(height: 20),
+          const SizedBox(height: 20),
           TextFormField(
             controller: _emailController,
             decoration: InputDecoration(labelText: 'Email'),
             enabled: _isEmailEditable,
           ),
-          SizedBox(height: 20),
+          const SizedBox(height: 20),
           TextFormField(
             controller: _phoneController,
             decoration: InputDecoration(labelText: 'Phone Number'),
           ),
-          SizedBox(height: 20),
+          const SizedBox(height: 20),
           ElevatedButton(
             onPressed: pickImage,
             child: Text('Change Profile Picture'),
           ),
+          const SizedBox(height: 30),
+          Text("Bio and Link",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 10),
+          TextFormField(
+            controller: _bioController,
+            decoration: InputDecoration(labelText: 'Bio'),
+            maxLength: 150,
+          ),
+          const SizedBox(height: 20),
+          TextFormField(
+            controller: _linkController,
+            decoration: InputDecoration(labelText: 'Link'),
+            keyboardType: TextInputType.url,
+          ),
+          const SizedBox(height: 30),
+          Text("Business Account",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 10),
+          SwitchListTile(
+            title: Text("Switch to Business Account"),
+            value: isBusinessAccount,
+            onChanged: (value) {
+              switchToBusinessAccount();
+            },
+          ),
+          if (isBusinessAccount) ...[
+            const SizedBox(height: 20),
+            TextFormField(
+              controller: _businessCategoryController,
+              decoration: InputDecoration(labelText: 'Business Category'),
+            ),
+            const SizedBox(height: 20),
+            TextFormField(
+              controller: _businessDescriptionController,
+              decoration: InputDecoration(labelText: 'Business Description'),
+            ),
+          ],
         ],
       ),
     );

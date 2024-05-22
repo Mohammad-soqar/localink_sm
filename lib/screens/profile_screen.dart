@@ -5,6 +5,7 @@ import 'package:flutter_svg/svg.dart';
 import 'package:localink_sm/models/user.dart' as model;
 import 'package:localink_sm/resources/auth_methods.dart';
 import 'package:localink_sm/resources/firestore_methods.dart';
+import 'package:localink_sm/screens/Admin_event_approval_screen.dart';
 import 'package:localink_sm/screens/add_tester_screen.dart';
 import 'package:localink_sm/screens/edit_profile_screen.dart';
 import 'package:localink_sm/screens/login_screen.dart';
@@ -13,6 +14,8 @@ import 'package:localink_sm/screens/profile_activity_screen.dart';
 import 'package:localink_sm/screens/users_online_screen.dart';
 import 'package:localink_sm/utils/colors.dart';
 import 'package:localink_sm/utils/utils.dart';
+import 'package:url_launcher/url_launcher.dart';
+
 import 'package:localink_sm/widgets/follow_button.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -150,6 +153,13 @@ class _ProfileScreenState extends State<ProfileScreen>
       _scaffoldKey.currentState!.closeDrawer();
     } else {
       _scaffoldKey.currentState!.openDrawer();
+    }
+  }
+
+  Future<void> _launchUrl(String url) async {
+    final Uri uri = Uri.parse(url);
+    if (!await launchUrl(uri)) {
+      throw Exception('Could not launch $url');
     }
   }
 
@@ -408,6 +418,20 @@ class _ProfileScreenState extends State<ProfileScreen>
                         context,
                         MaterialPageRoute(
                             builder: (context) => AddTesterPage()),
+                      );
+                    },
+                  )
+                : Container(),
+
+            currentUser != null && currentUser.uid == allowedUserId
+                ? ListTile(
+                    title: Text('Approve Events'),
+                    onTap: () async {
+                      Navigator.of(context).pop();
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => const AdminEventApprovalPage()),
                       );
                     },
                   )
@@ -686,20 +710,51 @@ class _ProfileScreenState extends State<ProfileScreen>
                           Container(
                             alignment: Alignment.centerLeft,
                             padding: const EdgeInsets.only(
-                              top: 15,
-                            ),
-                            child: Text(
-                              userData['username'],
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          Container(
-                            alignment: Alignment.centerLeft,
-                            padding: const EdgeInsets.only(
                               top: 1,
                             ),
+                          ),
+                          const SizedBox(
+                            height: 15,
+                          ),
+                          if (userData['bio'] != null &&
+                              userData['bio'].isNotEmpty) ...[
+                            Text(
+                              userData['bio'],
+                              style: const TextStyle(fontSize: 16),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(
+                              height: 15,
+                            ),
+                          ],
+                          if (userData['link'] != null &&
+                              userData['link'].isNotEmpty) ...[
+                            InkWell(
+                              onTap: () async {
+                                String url = userData['link'];
+                                if (!url.startsWith('http://') &&
+                                    !url.startsWith('https://')) {
+                                  url = 'http://$url';
+                                }
+                                try {
+                                  await _launchUrl(url);
+                                } catch (e) {
+                                  print(e);
+                                }
+                              },
+                              child: Text(
+                                userData['link'],
+                                style: const TextStyle(
+                                    fontSize: 16, color: Colors.blue),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                            const SizedBox(
+                              height: 15,
+                            ),
+                          ],
+                          const SizedBox(
+                            height: 15,
                           ),
                         ],
                       ),

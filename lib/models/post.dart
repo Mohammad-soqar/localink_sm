@@ -6,8 +6,8 @@ class Post {
   final Timestamp createdDatetime;
   final String caption;
   final DocumentReference postType;
-  final String longitude;
-  final String latitude;
+  final double longitude;
+  final double latitude;
   final String locationName;
   final List<dynamic> hashtags;
 

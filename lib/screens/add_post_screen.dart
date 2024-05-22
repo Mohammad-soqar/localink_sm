@@ -130,7 +130,6 @@ class _AddPostScreenState extends State<AddPostScreen> {
 
   @override
   void dispose() {
-    // TODO: implement dispose
     super.dispose();
     _descriptionController.dispose();
   }
@@ -155,17 +154,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
         title: const Text('Post to'),
         centerTitle: false,
         actions: [
-          /* TextButton(
-            onPressed: () => postImage(user!.uid, user.username, user.photoUrl),
-            child: const Text(
-              'Post',
-              style: TextStyle(
-                color: primaryColor,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
-          ) */
+        
         ],
       ),
       body: Column(

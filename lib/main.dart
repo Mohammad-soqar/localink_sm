@@ -11,6 +11,7 @@ import 'package:localink_sm/providers/user_provider.dart';
 import 'package:localink_sm/resources/storage_methods.dart';
 import 'package:localink_sm/screens/login_screen.dart';
 import 'package:localink_sm/screens/signup_screen.dart';
+import 'package:localink_sm/utils/service_locator.dart';
 import 'package:mapbox_gl/mapbox_gl.dart';
 import 'package:provider/provider.dart';
 import 'package:sensors_plus/sensors_plus.dart';
@@ -26,6 +27,8 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  setupLocator();  // Set up the location service
+
   runApp(const MyApp());
 }
 
@@ -58,8 +61,8 @@ class Home extends StatefulWidget {
 }
 
 class _HomeState extends State<Home> with WidgetsBindingObserver{
-  double shakeThresholdGravity = 2.7;
-  int shakeSlopTimeMS = 500;
+  double shakeThresholdGravity = 16.7;
+  int shakeSlopTimeMS = 3500;
   int shakeCountResetTime = 3000;
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
@@ -109,7 +112,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver{
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    SensorsPlatform.instance.accelerometerEvents
+   /*  SensorsPlatform.instance.accelerometerEvents
         .listen((AccelerometerEvent event) {
       var x = event.x;
       var y = event.y;
@@ -244,7 +247,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver{
           },
         );
       }
-    });
+    }); */
   }
 
   @override
