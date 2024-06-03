@@ -38,10 +38,10 @@ class _ProfileScreenState extends State<ProfileScreen>
   bool isLoading = false;
   late TabController _tabController;
   final GlobalKey<ScaffoldState> _scaffoldKey =
-      GlobalKey<ScaffoldState>(); // Add scaffold key
+      GlobalKey<ScaffoldState>();
   bool isDrawerOpen = false;
   model.User?
-      user; // Declare a variable to hold the user data at the class level
+      user; 
 
   @override
   void initState() {
@@ -299,7 +299,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               onTap: () {
                 // Your tap callback code
               },
-              child: Container(
+              child: Container( 
                 padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(),
                 child: Row(

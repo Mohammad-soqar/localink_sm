@@ -13,6 +13,7 @@ class Event {
   final double radius;
   final String status;
   final String pinUrl;
+  final List<String> imageUrls;
 
   Event({
     required this.id,
@@ -26,9 +27,9 @@ class Event {
     required this.attendees,
     required this.radius,
     required this.pinUrl,
+    required this.imageUrls,
     this.status = 'pending',
   });
-
 
   static Event fromSnap(DocumentSnapshot snap) {
     var snapshot = snap.data() as Map<String, dynamic>;
@@ -45,10 +46,11 @@ class Event {
       radius: snapshot['radius'],
       status: snapshot['status'],
       pinUrl: snapshot['pinUrl'],
+      imageUrls: List<String>.from(snapshot['imageUrls']),
     );
   }
 
-    Map<String, dynamic> toJson() {
+  Map<String, dynamic> toJson() {
     return {
       'id': id,
       'name': name,
@@ -62,6 +64,7 @@ class Event {
       'radius': radius,
       'status': status,
       'pinUrl': pinUrl,
+      'imageUrls': imageUrls,
     };
   }
 }

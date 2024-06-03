@@ -109,6 +109,7 @@ flutter:
     - assets/icons/app_icon/ic_launcher.png
     - assets/icons/email.svg
     - assets/icons/mapPin.png
+    - assets/icons/mapPin2.png
     - assets/icons/Profile_icons/Activity.svg
     - assets/icons/Profile_icons/Archive.svg
     - assets/icons/Profile_icons/CloseFriends.svg
