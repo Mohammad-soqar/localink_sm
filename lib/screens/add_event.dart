@@ -1,13 +1,19 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 
 import 'package:localink_sm/models/event.dart';
 import 'package:localink_sm/models/user.dart' as model;
 import 'package:localink_sm/providers/user_provider.dart';
 import 'package:localink_sm/utils/colors.dart';
 import 'package:localink_sm/widgets/new_map_picker.dart';
-import 'package:mapbox_gl/mapbox_gl.dart';
+import 'package:mapbox_gl/mapbox_gl.dart' as mapbox;
+import 'package:path_provider/path_provider.dart';
+import 'package:photo_manager/photo_manager.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -25,10 +31,72 @@ class _AddEventPageState extends State<AddEventPage> {
   final _locationDetailsController = TextEditingController();
   final _radiusController = TextEditingController();
   DateTime? _selectedDateTime;
-  LatLng? _pickedLocation;
+  mapbox.LatLng? _pickedLocation;
   Color _pinColor = highlightColor; // Default pin color
   final String organizer = "ErrorWithGettingTheUserId";
+  final List<XFile> _selectedImages = [];
+
   final FirebaseStorage _storage = FirebaseStorage.instance;
+
+  Future<void> _pickImages() async {
+    final ImagePicker picker = ImagePicker();
+    final List<XFile>? images = await picker.pickMultiImage();
+
+    if (images != null && images.isNotEmpty) {
+      setState(() {
+        _selectedImages.addAll(images);
+      });
+    }
+  }
+
+ Future<File?> xFileToFile(XFile xfile) async {
+    return File(xfile.path);
+  }
+
+  Future<List<String>> _uploadImages(String uid) async {
+    List<String> imageUrls = [];
+    final List<File> _compressedImages = [];
+
+    for(var image in _selectedImages){
+      File? originalFile = await xFileToFile(image);
+      File? mediaFile = await compressImage(originalFile!);
+      _compressedImages.add(mediaFile!);
+    }
+
+    for (var image in _compressedImages) {
+      final ref = _storage.ref().child(
+          'eventImages/$uid/${DateTime.now().millisecondsSinceEpoch}.png');
+      final uploadTask = await ref.putFile(File(image.path));
+      final downloadUrl = await uploadTask.ref.getDownloadURL();
+      imageUrls.add(downloadUrl);
+    }
+
+    return imageUrls;
+  }
+
+  Future<File?> compressImage(File file) async {
+    try {
+      final directory = await getTemporaryDirectory();
+      final targetPath =
+          '${directory.absolute.path}/${DateTime.now().millisecondsSinceEpoch}_compressed.jpg';
+
+      final XFile? xFile = await FlutterImageCompress.compressAndGetFile(
+        file.absolute.path,
+        targetPath,
+        quality: 88,
+        minWidth: 1000,
+        minHeight: 1000,
+      );
+
+      if (xFile != null) {
+        return File(xFile.path);
+      }
+      return null;
+    } catch (e) {
+      print("Error during image compression: $e");
+      return null;
+    }
+  }
 
   Future<void> _submitEvent(String uid, String photoUrl) async {
     if (_pickedLocation == null) {
@@ -46,6 +114,8 @@ class _AddEventPageState extends State<AddEventPage> {
     // Generate pin image with the selected color and logo
     String pinUrl = await _generatePinImage(uid, photoUrl);
 
+    List<String> imageUrls = await _uploadImages(uid);
+
     final event = Event(
       id: FirebaseFirestore.instance.collection('events').doc().id,
       name: _nameController.text,
@@ -58,6 +128,7 @@ class _AddEventPageState extends State<AddEventPage> {
       attendees: [],
       radius: double.parse(_radiusController.text),
       pinUrl: pinUrl, // Store the pin image URL
+      imageUrls: imageUrls, // Store the image URLs
     );
 
     if (_isValidEvent(event)) {
@@ -93,7 +164,7 @@ class _AddEventPageState extends State<AddEventPage> {
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => MapPickerScreen(
-          onLocationPicked: (LatLng location) {
+          onLocationPicked: (mapbox.LatLng location) {
             setState(() {
               _pickedLocation = location;
             });
@@ -141,24 +212,18 @@ class _AddEventPageState extends State<AddEventPage> {
 
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
-      final paint = Paint()..color = _pinColor;
-      final size = Size(100, 100); // Adjust size as needed
-
-      // Draw the pin background
-      canvas.drawCircle(
-          Offset(size.width / 2, size.height / 2), size.width / 2, paint);
+      final size = Size(150, 150); // Adjust size as needed
 
       // Draw the logo in the center
-      final logoSize = Size(50, 50); // Adjust logo size as needed
-      final logoOffset = Offset((size.width - logoSize.width) / 2,
-          (size.height - logoSize.height) / 2);
-      paint.isAntiAlias = true;
+      final logoSize = Size(150, 150); // Adjust logo size as needed
+      final Rect logoRect =
+          Rect.fromLTWH(0, 0, logoSize.width, logoSize.height);
+
       canvas.drawImageRect(
           image,
           Rect.fromLTRB(0, 0, image.width.toDouble(), image.height.toDouble()),
-          Rect.fromLTWH(
-              logoOffset.dx, logoOffset.dy, logoSize.width, logoSize.height),
-          paint);
+          logoRect,
+          Paint());
 
       final picture = recorder.endRecording();
       final img =
@@ -232,6 +297,9 @@ class _AddEventPageState extends State<AddEventPage> {
             TextField(
               controller: _descriptionController,
               decoration: InputDecoration(labelText: 'Event Description'),
+              keyboardType: TextInputType.multiline,
+              maxLines:
+                  null, // This allows the TextField to grow vertically as needed
             ),
             Row(
               children: [
@@ -278,6 +346,14 @@ class _AddEventPageState extends State<AddEventPage> {
                 ),
               ],
             ),
+            ElevatedButton(
+              onPressed: _pickImages,
+              child: Text('Pick Images'),
+            ),
+            if (_selectedImages.isNotEmpty) ...[
+              SizedBox(height: 10),
+              Text('${_selectedImages.length} images selected'),
+            ],
             ElevatedButton(
               onPressed: () {
                 if (user != null) {

@@ -13,6 +13,7 @@ import 'package:localink_sm/utils/Online_status.dart';
 import 'package:localink_sm/utils/colors.dart';
 import 'package:localink_sm/utils/location_service.dart';
 import 'package:localink_sm/utils/location_utils.dart';
+import 'package:localink_sm/widgets/event_details.dart';
 import 'package:location/location.dart';
 import 'package:mapbox_gl/mapbox_gl.dart';
 import 'package:http/http.dart' as http;
@@ -38,6 +39,7 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _animation;
   Map<String, Circle> eventCircles = {};
+  bool isBusinessAccount = false;
 
   final databaseReference = FirebaseDatabase.instanceFor(
     app: Firebase.app(),
@@ -77,6 +79,7 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
 
       if (userSnapshot.exists) {
         String? photoUrl = userSnapshot.get('photoUrl') as String?;
+        isBusinessAccount = userSnapshot.get('isBusinessAccount');
         return photoUrl;
       }
     }
@@ -87,6 +90,7 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
   void _onMapCreated(MapboxMapController controller) {
     setState(() {
       mapController = controller;
+      mapController!.onSymbolTapped.add(_onSymbolTapped);
     });
     print("Map controller initialized.");
   }
@@ -191,10 +195,10 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
       mapController
           ?.addSymbol(SymbolOptions(
         geometry: location,
-        iconImage: 'assets/icons/mapPin.png',
+        iconImage: 'assets/icons/mapPin2.png',
         iconSize: 0.8,
       ))
-          .then((symbol) {
+          .then( (symbol) {
         friendMarkers[friendId] = symbol;
       });
     }
@@ -284,7 +288,7 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
     try {
       mapController?.addSymbol(SymbolOptions(
         geometry: latLng,
-        iconImage: 'assets/icons/mapPin.png',
+        iconImage: 'assets/icons/mapPin2.png',
       ));
       mapController?.animateCamera(CameraUpdate.newLatLng(latLng));
       mapController
@@ -403,6 +407,10 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
     return completer.future;
   }
 
+  final ArgumentCallbacks<Symbol> onSymbolTapped = ArgumentCallbacks<Symbol>();
+
+  
+
   Future<Uint8List> createCustomMarkerImage(
       ui.Image pinImage, ui.Image userImage) async {
     final double imageSize = pinImage.width / 2;
@@ -474,26 +482,27 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
         await _addImageToMap(eventId, imageCache[pinUrl]!); // Use cached image
       }
 
-      _addBreathingCircle(eventId, location, () {
+      _addEventCircle(eventId, location, () {
         _addSymbol(eventId, location); // Add the symbol after the circle
       });
     }
   }
 
-  void _addBreathingCircle(
+  void _addEventCircle(
       String eventId, LatLng location, VoidCallback onComplete) {
     if (mapController == null) return;
-
     CircleOptions circleOptions = CircleOptions(
       geometry: location,
-      circleColor: '#FF2E63', // Blue color
-      circleOpacity: 0.2, // Initial opacity
-      circleRadius: 15.0, // Initial radius
+      circleRadius: 27.0,
+      circleOpacity: 0.3,
+      circleColor: '#FF2E63',
+      circleStrokeWidth: 2,
+      circleStrokeColor: '#FF2E63',
     );
 
     mapController?.addCircle(circleOptions).then((circle) {
       eventCircles[eventId] = circle;
-      _animateCircle(circle);
+
       onComplete(); // Callback to add symbol after circle
     });
   }
@@ -510,7 +519,8 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
       geometry: location,
       iconImage: eventId, // Use the eventId as the image identifier
       iconSize: 0.8,
-    ))
+      
+    ),{'id': eventId},)
         .then((symbol) {
       eventMarkers[eventId] = symbol;
     });
@@ -549,6 +559,53 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
     mapController?.addImage(name, imageBytes);
   }
 
+
+  void _onSymbolTapped(Symbol symbol) {
+    // Check if symbol.data is not null
+    if (symbol.data != null && symbol.data!.containsKey('id')) {
+      String tappedSymbolId = symbol.data!['id'].toString();
+      _showEventInformation(tappedSymbolId);
+      print('Tapped on symbol with id: $tappedSymbolId');
+      // Perform any action here based on the tapped symbol
+    } else {
+      print('Symbol data is null or does not contain an id.');
+    }
+  }
+
+ void _showEventInformation(String eventId) {
+  showDialog(
+    context: context,
+    barrierDismissible: true, // Dismissing the dialog by tapping outside of it
+    builder: (BuildContext context) {
+      return Dialog(
+        backgroundColor: Colors.transparent, // Transparent background to apply custom decoration
+        child: Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.center,
+          children: <Widget>[
+            // EventDetails widget is called here
+            EventDetails(eventId: eventId),
+            Positioned(
+              right: -15.0, // Adjust position as needed
+              top: -15.0, // Adjust position as needed
+              child: InkResponse(
+                onTap: () {
+                  Navigator.of(context).pop(); // Close the dialog
+                },
+                child: const CircleAvatar(
+                  child: Icon(Icons.close),
+                  backgroundColor: highlightColor,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+
 //ios: sk.eyJ1IjoibW9oYW1tYWRzb3FhcjEwMSIsImEiOiJjbHVkYzVrMzEwbjFpMmxuenpxM2Eybm5nIn0.S4pjUr0pwYqsJOzpJo73vQ
   @override
   Widget build(BuildContext context) {
@@ -567,12 +624,12 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
           zoom: 15.0,
         ),
         annotationOrder: const <AnnotationType>[
-         
           AnnotationType.line,
           AnnotationType.circle,
           AnnotationType.symbol,
         ],
       ),
+      isBusinessAccount?
       Positioned(
           top: 50,
           right: 0,
@@ -590,6 +647,7 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
                 borderRadius: BorderRadius.circular(16.0),
               ),
             ),
+             
             child: const Padding(
               padding: EdgeInsets.symmetric(vertical: 0, horizontal: 30.0),
               child: Text(
@@ -600,7 +658,7 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
                 ),
               ),
             ),
-          )),
+          )) : Container(),
       Positioned(
         bottom: 0,
         left: 0,

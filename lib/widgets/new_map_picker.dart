@@ -72,7 +72,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
       controller.addSymbol(
         SymbolOptions(
           geometry: location,
-          iconImage: "assets/icons/mapPin.png",
+          iconImage: "assets/icons/mapPin2.png",
         ),
       );
     }
