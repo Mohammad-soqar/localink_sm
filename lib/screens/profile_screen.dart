@@ -10,6 +10,7 @@ import 'package:localink_sm/screens/add_tester_screen.dart';
 import 'package:localink_sm/screens/edit_profile_screen.dart';
 import 'package:localink_sm/screens/login_screen.dart';
 import 'package:localink_sm/screens/chat.dart';
+import 'package:localink_sm/screens/my_events_screen.dart';
 import 'package:localink_sm/screens/profile_activity_screen.dart';
 import 'package:localink_sm/screens/users_online_screen.dart';
 import 'package:localink_sm/utils/colors.dart';
@@ -408,6 +409,20 @@ class _ProfileScreenState extends State<ProfileScreen>
                 ),
               ),
             ),
+
+            currentUser != null && user?.isBusinessAccount == true
+                ? ListTile(
+                    title: Text('My Events'),
+                    onTap: () async {
+                      Navigator.of(context).pop();
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => MyEventsPage(userId: currentUser.uid,)),
+                      );
+                    },
+                  )
+                : Container(),
 
             currentUser != null && currentUser.uid == allowedUserId
                 ? ListTile(

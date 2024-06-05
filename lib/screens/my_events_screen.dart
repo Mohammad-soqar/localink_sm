@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:localink_sm/models/user.dart' as model;
 import 'package:localink_sm/utils/utils.dart';
+import 'package:localink_sm/widgets/event_card.dart';
 import 'package:localink_sm/widgets/post_card.dart';
 
 class MyEventsPage extends StatefulWidget {
@@ -15,12 +16,13 @@ class MyEventsPage extends StatefulWidget {
 }
 
 class _MyEventsPageState extends State<MyEventsPage> {
-  bool isLoading = false;
-  model.User? user;
-  
+   bool isLoading = false;
+  List<DocumentSnapshot> events = [];
+
   @override
   void initState() {
     super.initState();
+    getData();
   }
 
   Future<void> getData() async {
@@ -31,40 +33,42 @@ class _MyEventsPageState extends State<MyEventsPage> {
     try {
       String userId = FirebaseAuth.instance.currentUser!.uid;
 
-      var userSnap = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
+      var eventSnap = await FirebaseFirestore.instance
+          .collection('events')
+          .where('organizer', isEqualTo: userId)
           .get();
 
-      if (userSnap.exists) {
-        user = model.User.fromSnap(userSnap);
-      }
-
-      var postSnap = await FirebaseFirestore.instance
-          .collection('posts')
-          .where('uid', isEqualTo: userId)
-          .get();
-
-
-     
+      setState(() {
+        events = eventSnap.docs;
+        isLoading = false;
+      });
     } catch (e) {
       showSnackBar(
         e.toString(),
         context,
       );
+      setState(() {
+        isLoading = false;
+      });
     }
-
-    setState(() {
-      isLoading = false;
-    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        appBar: AppBar(
-          title: const Text('My Events'),
-        ),
-        body: Container());
+      appBar: AppBar(
+        title: const Text('My Events'),
+      ),
+      body: isLoading
+          ? Center(child: CircularProgressIndicator())
+          : events.isEmpty
+              ? Center(child: Text('No events found'))
+              : ListView.builder(
+                  itemCount: events.length,
+                  itemBuilder: (context, index) {
+                    return EventCard(eventId: events[index].id);
+                  },
+                ),
+    );
   }
 }
