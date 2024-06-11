@@ -1,19 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
-import 'package:intl/intl.dart';
-import 'package:localink_sm/models/user.dart';
-import 'package:localink_sm/resources/firestore_methods.dart';
-import 'package:localink_sm/screens/comment_screen.dart';
 import 'package:localink_sm/utils/colors.dart';
 import 'package:localink_sm/utils/utils.dart';
-import 'package:provider/provider.dart';
 import 'package:localink_sm/models/user.dart' as model;
-import 'package:localink_sm/providers/user_provider.dart';
-import 'package:localink_sm/widgets/like_animation.dart';
-import 'package:video_player/video_player.dart';
-import 'package:visibility_detector/visibility_detector.dart';
 
 class EventCard extends StatefulWidget {
   final String eventId;
@@ -28,10 +18,24 @@ class _EventCardState extends State<EventCard> {
   bool isLoading = false;
   model.User? userData;
   DocumentSnapshot<Map<String, dynamic>>? event;
+  PageController _pageController = PageController();
+  int _currentPage = 0;
 
   @override
   void initState() {
     super.initState();
+    _getEventData(widget.eventId);
+    _pageController.addListener(() {
+      setState(() {
+        _currentPage = _pageController.page!.round();
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
   }
 
   _fetchUserData(String uid) async {
@@ -76,12 +80,75 @@ class _EventCardState extends State<EventCard> {
     }
   }
 
+  
+
+  Future<void> _deleteEvent(String eventId) async {
+    try {
+      var eventDoc = await FirebaseFirestore.instance
+          .collection('events')
+          .doc(eventId)
+          .get();
+      if (eventDoc.exists) {
+        await FirebaseFirestore.instance
+            .collection('events')
+            .doc(eventId)
+            .collection('deleted_events')
+            .doc(eventId)
+            .set({
+          ...eventDoc.data()!,
+          'deletedAt': FieldValue.serverTimestamp(),
+        });
+
+        await FirebaseFirestore.instance
+            .collection('events')
+            .doc(eventId)
+            .delete();
+
+        await FirebaseFirestore.instance.collection('events').doc(eventId).set({
+          
+          'deletedAt': FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (e) {
+      showSnackBar(
+        e.toString(),
+        context,
+      );
+    }
+  }
+
+  void _confirmDelete(BuildContext context, String eventId) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Delete Event'),
+        content: Text(
+            'Are you sure you want to delete this event? You will have 10 days to restore it.'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+            },
+            child: Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await _deleteEvent(eventId);
+            },
+            child: Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Container(
-        height: MediaQuery.of(context).size.height * 0.6,
+        height: MediaQuery.of(context).size.height * 0.5,
         child: isLoading
             ? Center(child: CircularProgressIndicator())
             : event != null
@@ -101,81 +168,57 @@ class _EventCardState extends State<EventCard> {
                         ],
                       ),
                       event!['imageUrls'] != null
-                          ? Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 4.0),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(15),
-                                child: Image.network(
-                                  (event!['imageUrls'] as List<dynamic>)[0],
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
-                            )
-                          : Padding(
-                              padding: const EdgeInsets.all(8.0),
-                              child: Text('No Images Available'),
-                            ),
-                      /* event!['imageUrls'] != null
-                          ? Padding(
-                              padding: const EdgeInsets.all(0.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  Container(
-                                    height: 200,
-                                    child: PageView.builder(
-                                      controller:
-                                          _pageController, // Assign the controller
-                                      itemCount: (event!['imageUrls']
-                                              as List<dynamic>)
-                                          .length,
-                                      itemBuilder: (context, index) {
-                                        return Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 4.0),
-                                          child: ClipRRect(
-                                            borderRadius:
-                                                BorderRadius.circular(15),
-                                            child: Image.network(
-                                              (event!['imageUrls']
-                                                  as List<dynamic>)[index],
-                                              fit: BoxFit.cover,
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                  SizedBox(height: 10),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: List.generate(
-                                      (event!['imageUrls']
-                                              as List<dynamic>)
-                                          .length,
-                                      (index) => Container(
-                                        width: 8.0,
-                                        height: 8.0,
-                                        margin: EdgeInsets.symmetric(
+                          ? Column(
+                              children: [
+                                SizedBox(
+                                  height: 200,
+                                  child: PageView.builder(
+                                    controller:
+                                        _pageController, // Assign the controller
+                                    itemCount:
+                                        (event!['imageUrls'] as List<dynamic>)
+                                            .length,
+                                    itemBuilder: (context, index) {
+                                      return Padding(
+                                        padding: const EdgeInsets.symmetric(
                                             horizontal: 4.0),
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          color: index == _currentPage
-                                              ? highlightColor
-                                              : Colors.grey,
+                                        child: ClipRRect(
+                                          borderRadius:
+                                              BorderRadius.circular(15),
+                                          child: Image.network(
+                                            (event!['imageUrls']
+                                                as List<dynamic>)[index],
+                                            fit: BoxFit.cover,
+                                          ),
                                         ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: List.generate(
+                                    (event!['imageUrls'] as List<dynamic>)
+                                        .length,
+                                    (index) => Container(
+                                      width: 8.0,
+                                      height: 8.0,
+                                      margin:
+                                          EdgeInsets.symmetric(horizontal: 4.0),
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: index == _currentPage
+                                            ? highlightColor
+                                            : Colors.grey,
                                       ),
                                     ),
                                   ),
-                                ],
-                              ),
+                                ),
+                              ],
                             )
-                          : Padding(
-                              padding: const EdgeInsets.all(8.0),
-                              child: Text('No Images Available'),
-                            ), */
-                      SizedBox(height: 10),
+                          : Container(),
+                      const SizedBox(height: 10),
                       Text(
                         event!['name'] ?? 'No Title',
                         style: const TextStyle(
@@ -183,7 +226,7 @@ class _EventCardState extends State<EventCard> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      SizedBox(height: 20),
+                      const SizedBox(height: 20),
                       Expanded(
                         child: Align(
                           alignment: Alignment.bottomCenter,
@@ -191,16 +234,15 @@ class _EventCardState extends State<EventCard> {
                             children: [
                               Expanded(
                                 child: ElevatedButton(
-                                  onPressed: () {
-                                   ;
-                                  },
+                                  onPressed: () =>
+                                      _confirmDelete(context, widget.eventId),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: highlightColor,
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(16.0),
                                     ),
                                   ),
-                                  child: Text(
+                                  child: const Text(
                                     'Directions',
                                     style: TextStyle(
                                       color: primaryColor,
@@ -209,22 +251,21 @@ class _EventCardState extends State<EventCard> {
                                   ),
                                 ),
                               ),
-                              SizedBox(
+                              const SizedBox(
                                   width:
                                       16), // Add some spacing between the buttons
                               Expanded(
                                 child: ElevatedButton(
-                                  onPressed: () {
-                                    // Add logic for signing up for the event
-                                  },
+                                  onPressed: () =>
+                                      _confirmDelete(context, widget.eventId),
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: highlightColor,
+                                    backgroundColor: darkBackgroundColor,
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(16.0),
                                     ),
                                   ),
-                                  child: Text(
-                                    'Sign Up',
+                                  child: const Text(
+                                    'Delete Event',
                                     style: TextStyle(
                                       color: primaryColor,
                                       fontSize: 16,

@@ -13,7 +13,9 @@ class Event {
   final double radius;
   final String status;
   final String pinUrl;
+  final String pinColor;
   final List<String> imageUrls;
+  final int maxAttendees; // Add this field
 
   Event({
     required this.id,
@@ -27,8 +29,10 @@ class Event {
     required this.attendees,
     required this.radius,
     required this.pinUrl,
+    required this.pinColor,
     required this.imageUrls,
     this.status = 'pending',
+    this.maxAttendees = -1, // Default to -1 for unlimited attendees
   });
 
   static Event fromSnap(DocumentSnapshot snap) {
@@ -46,7 +50,9 @@ class Event {
       radius: snapshot['radius'],
       status: snapshot['status'],
       pinUrl: snapshot['pinUrl'],
+      pinColor: snapshot['pinColor'],
       imageUrls: List<String>.from(snapshot['imageUrls']),
+      maxAttendees: snapshot['maxAttendees'] ?? -1,
     );
   }
 
@@ -64,7 +70,9 @@ class Event {
       'radius': radius,
       'status': status,
       'pinUrl': pinUrl,
+      'pinColor': pinColor,
       'imageUrls': imageUrls,
+      'maxAttendees': maxAttendees,
     };
   }
 }

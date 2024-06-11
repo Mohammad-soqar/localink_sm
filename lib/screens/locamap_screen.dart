@@ -38,6 +38,7 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
   Map<String, Symbol> eventMarkers = {};
   late AnimationController _animationController;
   late Animation<double> _animation;
+
   Map<String, Circle> eventCircles = {};
   bool isBusinessAccount = false;
 
@@ -456,15 +457,17 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
           var latitude = eventData['latitude'];
           var longitude = eventData['longitude'];
           var pinUrl = eventData['pinUrl'];
+          var pinColor = eventData['pinColor'];
 
           LatLng eventLocation = LatLng(latitude, longitude);
-          _addEventMarker(eventId, eventLocation, pinUrl);
+          print(pinColor);
+          _addEventMarker(eventId, eventLocation, pinUrl, pinColor);
         }
       });
     }
   }
 
-  void _addEventMarker(String eventId, LatLng location, String pinUrl) async {
+  void _addEventMarker(String eventId, LatLng location, String pinUrl, String pinColor) async {
     if (eventMarkers.containsKey(eventId)) {
       mapController?.updateSymbol(
           eventMarkers[eventId]!, SymbolOptions(geometry: location));
@@ -484,20 +487,20 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
 
       _addEventCircle(eventId, location, () {
         _addSymbol(eventId, location); // Add the symbol after the circle
-      });
+      }, pinColor);
     }
   }
 
   void _addEventCircle(
-      String eventId, LatLng location, VoidCallback onComplete) {
+      String eventId, LatLng location, VoidCallback onComplete, String pinColor) {
     if (mapController == null) return;
     CircleOptions circleOptions = CircleOptions(
       geometry: location,
       circleRadius: 27.0,
       circleOpacity: 0.3,
-      circleColor: '#FF2E63',
+      circleColor: pinColor,
       circleStrokeWidth: 2,
-      circleStrokeColor: '#FF2E63',
+      circleStrokeColor: pinColor,
     );
 
     mapController?.addCircle(circleOptions).then((circle) {

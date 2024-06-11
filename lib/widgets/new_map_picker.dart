@@ -1,8 +1,7 @@
 import 'dart:async';
 import 'dart:math';
-
 import 'package:flutter/material.dart';
-import 'package:localink_sm/utils/location_service.dart';
+import 'package:localink_sm/utils/RestrictedAreasService.dart';
 import 'package:mapbox_gl/mapbox_gl.dart';
 
 class MapPickerScreen extends StatefulWidget {
@@ -17,21 +16,41 @@ class MapPickerScreen extends StatefulWidget {
 class _MapPickerScreenState extends State<MapPickerScreen> {
   MapboxMapController? _controller;
   LatLng? _pickedLocation;
-  LocationService locationService = LocationService();
-  Completer<MapboxMapController> _controllerCompleter = Completer<MapboxMapController>();
+  Completer<MapboxMapController> _controllerCompleter =
+      Completer<MapboxMapController>();
+  List<LatLng> _restrictedAreas = [];
 
   @override
   void initState() {
     super.initState();
     _setInitialLocation();
+    _fetchRestrictedAreas();
   }
 
   void _setInitialLocation() {
-    var currentLocation = locationService.currentLocation;
-    if (currentLocation != null) {
-      _pickedLocation = LatLng(currentLocation.latitude!, currentLocation.longitude!);
-    } else {
-      _pickedLocation = LatLng(37.7749, -122.4194); // Default location
+    // Set the initial location here
+  }
+
+  Future<void> _fetchRestrictedAreas() async {
+    RestrictedAreasService service = RestrictedAreasService();
+    List<LatLng> areas = await service.fetchRestrictedAreas();
+    setState(() {
+      _restrictedAreas = areas;
+    });
+    _displayRestrictedAreas();
+  }
+
+  Future<void> _displayRestrictedAreas() async {
+    final controller = await _controllerCompleter.future;
+    for (var area in _restrictedAreas) {
+      controller.addCircle(
+        CircleOptions(
+          geometry: area,
+          circleRadius: 8.0,
+          circleColor: "#116640",
+          circleOpacity: 0.5,
+        ),
+      );
     }
   }
 
@@ -39,6 +58,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     _controller = controller;
     _controllerCompleter.complete(controller);
     await _moveCameraToCurrentLocation();
+    _displayRestrictedAreas();
   }
 
   Future<void> _moveCameraToCurrentLocation() async {
@@ -49,16 +69,14 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     }
   }
 
-  void _onCameraIdle() {
-    if (_controller != null) {
-      LatLng center = _controller!.cameraPosition!.target;
-      setState(() {
-        _pickedLocation = center;
-      });
-    }
-  }
-
   void _onMapTap(Point<double> point, LatLng coordinates) {
+    if (_isRestrictedArea(coordinates)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Cannot add events in restricted areas')),
+      );
+      return;
+    }
+
     setState(() {
       _pickedLocation = coordinates;
     });
@@ -76,6 +94,28 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
         ),
       );
     }
+  }
+
+  bool _isRestrictedArea(LatLng coordinates) {
+    for (LatLng area in _restrictedAreas) {
+      if (_calculateDistance(coordinates, area) < 0.05) {
+        // Distance in kilometers
+        return true;
+      }
+    }
+    return false;
+  }
+
+  double _calculateDistance(LatLng point1, LatLng point2) {
+    var p = 0.017453292519943295; // Math.PI / 180
+    var c = cos;
+    var a = 0.5 -
+        c((point2.latitude - point1.latitude) * p) / 2 +
+        c(point1.latitude * p) *
+            c(point2.latitude * p) *
+            (1 - c((point2.longitude - point1.longitude) * p)) /
+            2;
+    return 12742 * asin(sqrt(a)); // 2 * R; R = 6371 km
   }
 
   void _onPickLocation() {
@@ -98,14 +138,15 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
         ],
       ),
       body: MapboxMap(
-        accessToken: "sk.eyJ1IjoibW9oYW1tYWRzb3FhcjEwMSIsImEiOiJjbHUyM3Rwc2owc2p6MmtrMWg1eTNjb25oIn0.uP5k1FrxSDNNBjWo1LdSlg",
+        accessToken:
+            "sk.eyJ1IjoibW9oYW1tYWRzb3FhcjEwMSIsImEiOiJjbHUyM3Rwc2owc2p6MmtrMWg1eTNjb25oIn0.uP5k1FrxSDNNBjWo1LdSlg",
         onMapCreated: _onMapCreated,
         styleString: "mapbox://styles/mapbox/dark-v11",
         initialCameraPosition: CameraPosition(
-          target: _pickedLocation ?? LatLng(37.7749, -122.4194), // Default location if null
+          target: _pickedLocation ??
+              LatLng(41.0125944, 28.54218839999999), // Default location if null
           zoom: 14.0,
         ),
-        onCameraIdle: _onCameraIdle,
         onMapClick: _onMapTap,
       ),
     );
