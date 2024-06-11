@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
@@ -20,6 +21,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:ui' as ui;
 import 'package:flutter/services.dart';
 
+
 class AddEventPage extends StatefulWidget {
   @override
   _AddEventPageState createState() => _AddEventPageState();
@@ -30,9 +32,10 @@ class _AddEventPageState extends State<AddEventPage> {
   final _descriptionController = TextEditingController();
   final _locationDetailsController = TextEditingController();
   final _radiusController = TextEditingController();
+  final _attendenceController = TextEditingController();
   DateTime? _selectedDateTime;
   mapbox.LatLng? _pickedLocation;
-  Color _pinColor = highlightColor; // Default pin color
+  Color _pinColor = highlightColor;
   final String organizer = "ErrorWithGettingTheUserId";
   final List<XFile> _selectedImages = [];
 
@@ -49,7 +52,7 @@ class _AddEventPageState extends State<AddEventPage> {
     }
   }
 
- Future<File?> xFileToFile(XFile xfile) async {
+  Future<File?> xFileToFile(XFile xfile) async {
     return File(xfile.path);
   }
 
@@ -57,7 +60,7 @@ class _AddEventPageState extends State<AddEventPage> {
     List<String> imageUrls = [];
     final List<File> _compressedImages = [];
 
-    for(var image in _selectedImages){
+    for (var image in _selectedImages) {
       File? originalFile = await xFileToFile(image);
       File? mediaFile = await compressImage(originalFile!);
       _compressedImages.add(mediaFile!);
@@ -98,53 +101,78 @@ class _AddEventPageState extends State<AddEventPage> {
     }
   }
 
-  Future<void> _submitEvent(String uid, String photoUrl) async {
-    if (_pickedLocation == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please pick a location')));
-      return;
-    }
+  String colorToHex(Color color) {
+    return '#${color.value.toRadixString(16).substring(2)}';
+  }
 
-    if (_selectedDateTime == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please pick a date and time')));
-      return;
-    }
 
-    // Generate pin image with the selected color and logo
-    String pinUrl = await _generatePinImage(uid, photoUrl);
+Future<void> _submitEvent(String uid, String photoUrl) async {
+  if (_pickedLocation == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please pick a location')));
+    return;
+  }
 
-    List<String> imageUrls = await _uploadImages(uid);
+  if (_selectedDateTime == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please pick a date and time')));
+    return;
+  }
 
-    final event = Event(
-      id: FirebaseFirestore.instance.collection('events').doc().id,
-      name: _nameController.text,
-      description: _descriptionController.text,
-      dateTime: _selectedDateTime!,
-      latitude: _pickedLocation!.latitude,
-      longitude: _pickedLocation!.longitude,
-      organizer: uid,
-      locationDetails: _locationDetailsController.text,
-      attendees: [],
-      radius: double.parse(_radiusController.text),
-      pinUrl: pinUrl, // Store the pin image URL
-      imageUrls: imageUrls, // Store the image URLs
-    );
+  String pinUrl = await _generatePinImage(uid, photoUrl);
+  List<String> imageUrls = await _uploadImages(uid);
+  String hexColor = colorToHex(_pinColor);
 
-    if (_isValidEvent(event)) {
+  final event = Event(
+    id: FirebaseFirestore.instance.collection('events').doc().id,
+    name: _nameController.text,
+    description: _descriptionController.text,
+    dateTime: _selectedDateTime!,
+    latitude: _pickedLocation!.latitude,
+    longitude: _pickedLocation!.longitude,
+    organizer: uid,
+    locationDetails: _locationDetailsController.text,
+    attendees: [],
+    radius: double.parse(_radiusController.text),
+    pinUrl: pinUrl,
+    pinColor: hexColor,
+    imageUrls: imageUrls,
+  );
+
+  if (!_isValidEvent(event)) {
+    ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Event validation failed')));
+    return;
+  }
+
+  try {
+    final HttpsCallable callable = FirebaseFunctions.instance.httpsCallable('verifyEventContent');
+    final response = await callable.call(<String, dynamic>{
+      'description': event.description,
+      'imageUrls': event.imageUrls,
+    });
+
+    if (response.data['approved']) {
       await addEvent(event);
     } else {
-      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Event validation failed')));
+          SnackBar(content: Text('Event rejected: ${response.data['reason']}')));
     }
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error verifying event: $e')));
   }
+}
+
 
   bool _isValidEvent(Event event) {
     if (event.name.isEmpty || event.description.isEmpty) return false;
     if (event.dateTime.isBefore(DateTime.now())) return false;
     if (event.latitude < -90 || event.latitude > 90) return false;
     if (event.longitude < -180 || event.longitude > 180) return false;
+    if (event.radius <= 0) return false;
+    if (_attendenceController.text.isEmpty) return false;
+ 
     return true;
   }
 
@@ -323,6 +351,11 @@ class _AddEventPageState extends State<AddEventPage> {
             TextField(
               controller: _radiusController,
               decoration: InputDecoration(labelText: 'Radius (meters)'),
+              keyboardType: TextInputType.number,
+            ),
+            TextField(
+              controller: _attendenceController,
+              decoration: InputDecoration(labelText: 'Max Attendence'),
               keyboardType: TextInputType.number,
             ),
             SizedBox(height: 20),

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:localink_sm/models/user.dart' as model;
@@ -43,6 +44,38 @@ class _EventDetailsState extends State<EventDetails> {
       }
     } catch (err) {
       print('Error fetching user data: $err');
+    }
+  }
+
+  Future<void> _signUpForEvent() async {
+    try {
+      String userId = FirebaseAuth.instance.currentUser!.uid;
+      var eventDoc =
+          FirebaseFirestore.instance.collection('events').doc(widget.eventId);
+      var attendeesCollection = eventDoc.collection('attendees');
+
+      var attendeesSnapshot = await attendeesCollection.get();
+      int maxAttendees = event!['maxAttendees'];
+
+      if (attendeesSnapshot.docs.any((doc) => doc.id == userId)) {
+        showSnackBar('You are already signed up for this event.', context);
+        return;
+      }
+
+      if (maxAttendees != -1 && attendeesSnapshot.docs.length >= maxAttendees) {
+        showSnackBar(
+            'This event has reached its maximum number of attendees.', context);
+        return;
+      }
+
+      await attendeesCollection.doc(userId).set({
+        'userId': userId,
+        'signedUpAt': FieldValue.serverTimestamp(),
+      });
+
+      showSnackBar('You have successfully signed up for the event.', context);
+    } catch (e) {
+      showSnackBar(e.toString(), context);
     }
   }
 
@@ -230,9 +263,7 @@ class _EventDetailsState extends State<EventDetails> {
                                         16), // Add some spacing between the buttons
                                 Expanded(
                                   child: ElevatedButton(
-                                    onPressed: () {
-                                      // Add logic for signing up for the event
-                                    },
+                                    onPressed: () => _signUpForEvent(),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: highlightColor,
                                       shape: RoundedRectangleBorder(

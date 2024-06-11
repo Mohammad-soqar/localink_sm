@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:localink_sm/utils/colors.dart';
 import 'package:localink_sm/utils/utils.dart';
@@ -79,6 +80,8 @@ class _EventCardState extends State<EventCard> {
     }
   }
 
+  
+
   Future<void> _deleteEvent(String eventId) async {
     try {
       var eventDoc = await FirebaseFirestore.instance
@@ -95,10 +98,16 @@ class _EventCardState extends State<EventCard> {
           ...eventDoc.data()!,
           'deletedAt': FieldValue.serverTimestamp(),
         });
+
         await FirebaseFirestore.instance
             .collection('events')
             .doc(eventId)
             .delete();
+
+        await FirebaseFirestore.instance.collection('events').doc(eventId).set({
+          
+          'deletedAt': FieldValue.serverTimestamp(),
+        });
       }
     } catch (e) {
       showSnackBar(

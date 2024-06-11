@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:localink_sm/models/user.dart' as model;
+import 'package:localink_sm/screens/deleted_events.dart';
 import 'package:localink_sm/utils/utils.dart';
 import 'package:localink_sm/widgets/event_card.dart';
 import 'package:localink_sm/widgets/post_card.dart';
@@ -16,7 +17,7 @@ class MyEventsPage extends StatefulWidget {
 }
 
 class _MyEventsPageState extends State<MyEventsPage> {
-   bool isLoading = false;
+  bool isLoading = false;
   List<DocumentSnapshot> events = [];
 
   @override
@@ -58,6 +59,17 @@ class _MyEventsPageState extends State<MyEventsPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Events'),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.delete),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => DeletedEventsPage()),
+              );
+            },
+          ),
+        ],
       ),
       body: isLoading
           ? Center(child: CircularProgressIndicator())
