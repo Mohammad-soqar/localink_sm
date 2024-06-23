@@ -1,29 +1,37 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:image_cropper/image_cropper.dart';
+import 'package:intl/intl.dart';
 import 'package:localink_sm/models/user.dart' as model;
 import 'package:localink_sm/providers/user_provider.dart';
 import 'package:localink_sm/resources/firestore_methods.dart';
+import 'package:localink_sm/services/visiting_status.dart';
 import 'package:localink_sm/utils/colors.dart';
 import 'package:localink_sm/utils/utils.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:provider/provider.dart';
+import 'package:video_compress/video_compress.dart';
 import 'package:video_player/video_player.dart';
 
 class PostPage extends StatefulWidget {
+  const PostPage({super.key});
+
   @override
   _PostPageState createState() => _PostPageState();
 }
 
 class _PostPageState extends State<PostPage> {
   int _currentPage = 0; // Track the current page index
-  PageController _pageController =
+  final PageController _pageController =
       PageController(initialPage: 0); // Controller for PageView
 
   @override
@@ -45,23 +53,19 @@ class _PostPageState extends State<PostPage> {
           CreateUpdatePage(),
         ],
       ),
-      bottomNavigationBar: Positioned(
-        bottom: 0,
-        right: 0,
-        child: Container(
-          height: 50,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(50),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              buildNavItem(0, 'Photos'),
-              buildNavItem(1, 'Videos'),
-              buildNavItem(2, 'Updates'),
-            ],
-          ),
+      bottomNavigationBar: Container(
+        height: 50,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(50),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            buildNavItem(0, 'Photos'),
+            buildNavItem(1, 'Videos'),
+            buildNavItem(2, 'Updates'),
+          ],
         ),
       ),
     );
@@ -100,6 +104,7 @@ class _PostPageState extends State<PostPage> {
   }
 }
 
+
 class PhotosPage extends StatefulWidget {
   const PhotosPage({super.key});
 
@@ -108,7 +113,7 @@ class PhotosPage extends StatefulWidget {
 }
 
 class _PhotosPageState extends State<PhotosPage> {
-  List<AssetEntity> _mediaAssets = [];
+  final List<AssetEntity> _mediaAssets = [];
   AssetEntity? _selectedImage;
   int currentPage = 0;
   bool isLoading = false;
@@ -143,7 +148,7 @@ class _PhotosPageState extends State<PhotosPage> {
     final recentAlbum = paths.firstWhere((album) => album.name == "Recent",
         orElse: () => paths.first);
     final List<AssetEntity> media =
-        await recentAlbum.getAssetListPaged(page: currentPage, size: 60);
+        await recentAlbum.getAssetListPaged(page: currentPage, size: 200);
 
     if (_selectedImage == null && media.isNotEmpty) {
       setState(() => _selectedImage = media.first);
@@ -164,6 +169,62 @@ class _PhotosPageState extends State<PhotosPage> {
       duration: Duration(milliseconds: 300),
       curve: Curves.easeOut,
     );
+  }
+
+  Future<File?> _cropImage(File imageFile) async {
+    try {
+      CroppedFile? croppedFile = await ImageCropper().cropImage(
+        sourcePath: imageFile.path,
+        aspectRatio: CropAspectRatio(ratioX: 1, ratioY: 1),
+        uiSettings: [
+          AndroidUiSettings(
+            toolbarTitle: 'Crop Image',
+            toolbarColor: darkLBackgroundColor,
+            toolbarWidgetColor: highlightColor,
+            statusBarColor: darkLBackgroundColor,
+            activeControlsWidgetColor: highlightColor,
+            initAspectRatio: CropAspectRatioPreset.original,
+            lockAspectRatio: true,
+          ),
+          IOSUiSettings(
+            title: 'Crop Image',
+          ),
+        ],
+      );
+      return croppedFile != null ? File(croppedFile.path) : null;
+    } catch (e) {
+      print("Error cropping image: $e");
+      return null;
+    }
+  }
+
+  Future<void> _onNextPressed() async {
+    if (_selectedImage != null) {
+      print("Selected image: ${_selectedImage!.id}");
+      File? imageFile = await _selectedImage!.file;
+      if (imageFile != null) {
+        print("Image file path: ${imageFile.path}");
+        File? croppedFile = await _cropImage(imageFile);
+        if (croppedFile != null) {
+          print("Cropped file path: ${croppedFile.path}");
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => CaptionPage(
+                selectedMedia: croppedFile,
+                mediaType: MediaType.photo,
+              ),
+            ),
+          );
+        } else {
+          print("Cropped file is null");
+        }
+      } else {
+        print("Image file is null");
+      }
+    } else {
+      print("No image selected");
+    }
   }
 
   Widget _buildSelectedImageWidget() {
@@ -189,7 +250,7 @@ class _PhotosPageState extends State<PhotosPage> {
         slivers: <Widget>[
           SliverAppBar(
             pinned: true,
-            expandedHeight: MediaQuery.of(context).size.height * 0.48,
+          expandedHeight: MediaQuery.of(context).size.height * 0.48,
             automaticallyImplyLeading: false,
             backgroundColor: Colors.transparent,
             flexibleSpace: FlexibleSpaceBar(
@@ -250,20 +311,7 @@ class _PhotosPageState extends State<PhotosPage> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          if (_selectedImage != null) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => CaptionPage(
-                  selectedMedia:
-                      _selectedImage, // Assuming _selectedImage is an AssetEntity
-                  mediaType: MediaType.photo,
-                ),
-              ),
-            );
-          }
-        },
+        onPressed: _onNextPressed,
         label: const Row(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
@@ -290,7 +338,7 @@ class _PhotosPageState extends State<PhotosPage> {
 enum MediaType { photo, video }
 
 class CaptionPage extends StatefulWidget {
-  final AssetEntity? selectedMedia;
+  final File selectedMedia;
   final MediaType mediaType;
 
   const CaptionPage({
@@ -306,11 +354,46 @@ class CaptionPage extends StatefulWidget {
 class _CaptionPageState extends State<CaptionPage> {
   final TextEditingController _descriptionController = TextEditingController();
   bool _isLoading = false;
+  bool _isScheduled = false;
+  DateTime? _scheduledDate;
+  String _selectedPrivacy = 'Public';
+  //final List<String> _tags = [];
+  late VideoPlayerController _videoPlayerController;
   PageController pageController = PageController(initialPage: 0);
 
-  Future<File?> assetEntityToFile(AssetEntity assetEntity) async {
-    final File? file = await assetEntity.file;
-    return file;
+  @override
+  void initState() {
+    super.initState();
+    if (widget.mediaType == MediaType.video) {
+      _videoPlayerController = VideoPlayerController.file(widget.selectedMedia)
+        ..initialize().then((_) {
+          setState(() {});
+          _videoPlayerController.play();
+        });
+    }
+  }
+
+  @override
+  void dispose() {
+    _descriptionController.dispose();
+    if (widget.mediaType == MediaType.video) {
+      _videoPlayerController.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<File?> compressVideo(File file) async {
+    try {
+      final info = await VideoCompress.compressVideo(
+        file.path,
+        quality: VideoQuality.MediumQuality,
+        deleteOrigin: false, // If true, the original file will be deleted
+      );
+      return info?.file;
+    } catch (e) {
+      print("Error during video compression: $e");
+      return null;
+    }
   }
 
   Future<File?> compressImage(File file) async {
@@ -343,39 +426,56 @@ class _CaptionPageState extends State<CaptionPage> {
     });
 
     try {
-      File? originalFile = await assetEntityToFile(widget.selectedMedia!);
-      File? mediaFile;
+      File mediaFile;
 
-      if (widget.mediaType == MediaType.photo && originalFile != null) {
-        mediaFile = await compressImage(originalFile);
+      if (widget.mediaType == MediaType.photo) {
+        mediaFile = (await compressImage(widget.selectedMedia))!;
       } else {
-        mediaFile = originalFile; // No compression for videos
+        mediaFile = (await compressVideo(widget.selectedMedia))!;
       }
 
-      if (mediaFile != null) {
+      VisitingStatus visitingStatus = VisitingStatus();
+      Map<String, dynamic>? visitingData = await visitingStatus.isUserVisiting(uid);
+
+      double latitude;
+      double longitude;
+      bool isVisiting = visitingData?['visiting'] == true;
+
+      if (isVisiting) {
+        // Use visitor's location if visiting
+        latitude = visitingData!['latitude'];
+        longitude = visitingData['longitude'];
+      } else {
+        // Use the current location if not visiting
         Position position = await Geolocator.getCurrentPosition(
             desiredAccuracy: LocationAccuracy.high);
-        double latitude = position.latitude;
-        double longitude = position.longitude;
+        latitude = position.latitude;
+        longitude = position.longitude;
+      }
 
-        String res = await FireStoreMethods().createPost(
-          uid,
-          _descriptionController.text,
-          widget.mediaType == MediaType.photo ? "photos" : "videos",
-          mediaFile,
-          latitude,
-          longitude,
-        );
+      String res = await FireStoreMethods().createPost(
+        uid,
+        _descriptionController.text,
+        widget.mediaType == MediaType.photo ? "photos" : "videos",
+        mediaFile,
+        latitude,
+        longitude,
+        isVisiting,
+        _selectedPrivacy,
+        _isScheduled ? _scheduledDate : null,
+       //_tags,
+      );
 
-        if (res == "success") {
-          showSnackBar('Posted!', context);
-          Navigator.of(context).popUntil((route) => route.isFirst);
-          pageController.jumpToPage(0);
-        } else {
-          showSnackBar(res, context);
-        }
-      } else {
-        showSnackBar('Media processing failed.', context);
+       if (res == "success") {
+      showSnackBar('Posted!', context);
+      Navigator.of(context).popUntil((route) => route.isFirst);
+
+      // Ensure the page jump is performed after navigation completes
+      Future.delayed(Duration(milliseconds: 200), () {
+      //  pageController.jumpToPage(0);
+      });
+    }else {
+        showSnackBar(res, context);
       }
     } catch (err) {
       showSnackBar(err.toString(), context);
@@ -384,12 +484,6 @@ class _CaptionPageState extends State<CaptionPage> {
         _isLoading = false;
       });
     }
-  }
-
-  @override
-  void dispose() {
-    _descriptionController.dispose();
-    super.dispose();
   }
 
   @override
@@ -405,54 +499,25 @@ class _CaptionPageState extends State<CaptionPage> {
           // Display the selected media as a thumbnail
           Container(
             padding: const EdgeInsets.all(8.0),
-            child: FutureBuilder<File?>(
-              future: widget.selectedMedia!.file,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.done &&
-                    snapshot.data != null) {
-                  // For videos, display first frame or placeholder
-                  if (widget.mediaType == MediaType.video) {
-                    return FutureBuilder<Uint8List?>(
-                      future: widget.selectedMedia!.thumbnailData,
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.done &&
-                            snapshot.data != null) {
-                          return Image.memory(
-                            snapshot.data!,
-                            width: 150, // Adjust the size as needed
-                            height: 150,
-                            fit: BoxFit.cover,
-                          );
-                        } else {
-                          // Placeholder for video
-                          return Container(
-                            width: 150,
-                            height: 150,
-                            color: Colors.black,
-                            child: Icon(
-                              Icons.play_arrow,
-                              color: Colors.white,
-                              size: 50,
-                            ),
-                          );
-                        }
-                      },
-                    );
-                  }
-
-                  // For photos, display the image file
-                  return Image.file(
-                    snapshot.data!,
+            height: 300, // Adjust the height as needed
+            child: widget.mediaType == MediaType.video
+                ? _videoPlayerController.value.isInitialized
+                    ? FittedBox(
+                        fit: BoxFit.contain,
+                        child: SizedBox(
+                          width: _videoPlayerController.value.size?.width ?? 0,
+                          height:
+                              _videoPlayerController.value.size?.height ?? 0,
+                          child: VideoPlayer(_videoPlayerController),
+                        ),
+                      )
+                    : Center(child: CircularProgressIndicator())
+                : Image.file(
+                    widget.selectedMedia,
                     width: 150, // Adjust the size as needed
                     height: 150,
                     fit: BoxFit.cover,
-                  );
-                } else {
-                  // Handle loading state or nullable file
-                  return const CircularProgressIndicator();
-                }
-              },
-            ),
+                  ),
           ),
           // Caption input field
           TextField(
@@ -464,11 +529,85 @@ class _CaptionPageState extends State<CaptionPage> {
             ),
             maxLines: null,
           ),
+          // Privacy setting
+          DropdownButton<String>(
+            value: _selectedPrivacy,
+            items: <String>['Public', /*'Friends', 'Private'*/]
+                .map((String value) {
+              return DropdownMenuItem<String>(
+                value: value,
+                child: Text(value),
+              );
+            }).toList(),
+            onChanged: (String? newValue) {
+              setState(() {
+                _selectedPrivacy = newValue!;
+              });
+            },
+          ),
+          // Schedule post
+          Row(
+            children: [
+              Checkbox(
+                value: _isScheduled,
+                onChanged: (bool? value) {
+                  setState(() {
+                    _isScheduled = value!;
+                  });
+                },
+              ),
+              Text('Schedule post'),
+              if (_isScheduled)
+                IconButton(
+                  icon: Icon(Icons.calendar_today),
+                  onPressed: () async {
+                    DateTime? picked = await showDatePicker(
+                      context: context,
+                      initialDate: DateTime.now(),
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime(2101),
+                    );
+                    if (picked != null && picked != _scheduledDate) {
+                      setState(() {
+                        _scheduledDate = picked;
+                      });
+                    }
+                  },
+                ),
+              if (_isScheduled && _scheduledDate != null)
+                Text(DateFormat('yyyy-MM-dd').format(_scheduledDate!)),
+            ],
+          ),
+          // Tags
+         /*  TextField(
+            decoration: InputDecoration(
+              labelText: 'Tags',
+              hintText: 'Add tags...',
+              border: OutlineInputBorder(),
+            ),
+            onSubmitted: (String tag) {
+              setState(() {
+                _tags.add(tag);
+              });
+            },
+          ),
+          Wrap(
+            children: _tags.map((tag) {
+              return Chip(
+                label: Text(tag),
+                onDeleted: () {
+                  setState(() {
+                    _tags.remove(tag);
+                  });
+                },
+              );
+            }).toList(),
+          ), */
           // Post button
           ElevatedButton(
             onPressed: _isLoading ? null : () => createPost(user!.uid),
             child: _isLoading
-                ? CircularProgressIndicator(
+                ? const CircularProgressIndicator(
                     valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                   )
                 : Text('Post'),
@@ -477,13 +616,8 @@ class _CaptionPageState extends State<CaptionPage> {
       ),
     );
   }
-
-  void showSnackBar(String content, BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(content)),
-    );
-  }
 }
+
 
 void main() {
   runApp(MaterialApp(
@@ -566,6 +700,23 @@ class _VideosPageState extends State<VideosPage> {
     );
   }
 
+  Future<void> _onNextPressed() async {
+    if (_selectedVideo != null) {
+      File? videoFile = await _selectedVideo!.file;
+      if (videoFile != null) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => CaptionPage(
+              selectedMedia: videoFile,
+              mediaType: MediaType.video,
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -578,7 +729,7 @@ class _VideosPageState extends State<VideosPage> {
             ),
           Expanded(
             child: GridView.builder(
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 3,
                 crossAxisSpacing: 4.0,
                 mainAxisSpacing: 4.0,
@@ -611,20 +762,7 @@ class _VideosPageState extends State<VideosPage> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          if (_selectedVideo != null) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => CaptionPage(
-                  selectedMedia:
-                      _selectedVideo, // Assuming _selectedVideo is an AssetEntity
-                  mediaType: MediaType.video,
-                ),
-              ),
-            );
-          }
-        },
+        onPressed: _onNextPressed,
         label: const Row(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
@@ -678,10 +816,24 @@ class _CreateUpdatePageState extends State<CreateUpdatePage> {
     });
 
     try {
-      Position position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high);
-      double latitude = position.latitude;
-      double longitude = position.longitude;
+        VisitingStatus visitingStatus = VisitingStatus();
+      Map<String, dynamic>? visitingData = await visitingStatus.isUserVisiting(uid);
+
+      double latitude;
+      double longitude;
+      bool isVisiting = visitingData?['visiting'] == true;
+
+      if (isVisiting) {
+        // Use visitor's location if visiting
+        latitude = visitingData!['latitude'];
+        longitude = visitingData['longitude'];
+      } else {
+        // Use the current location if not visiting
+        Position position = await Geolocator.getCurrentPosition(
+            desiredAccuracy: LocationAccuracy.high);
+        latitude = position.latitude;
+        longitude = position.longitude;
+      }
 
       String res = await FireStoreMethods().createTextPost(
         uid,
@@ -689,6 +841,7 @@ class _CreateUpdatePageState extends State<CreateUpdatePage> {
         "updates",
         latitude,
         longitude,
+        isVisiting
       );
 
       if (res == "success") {
@@ -719,8 +872,8 @@ class _CreateUpdatePageState extends State<CreateUpdatePage> {
               controller: _captionController,
               keyboardType: TextInputType.multiline,
               maxLines: null, // This allows for multi-line input
-              style: TextStyle(color: Colors.white),
-              decoration: InputDecoration(
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
                 hintText: "What's on your mind?",
                 hintStyle: TextStyle(color: Colors.grey),
                 border: InputBorder.none,
@@ -732,7 +885,7 @@ class _CreateUpdatePageState extends State<CreateUpdatePage> {
           ElevatedButton(
             onPressed: _isLoading ? null : () => _postUpdate(user!.uid),
             child: _isLoading
-                ? CircularProgressIndicator(
+                ? const CircularProgressIndicator(
                     valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                   )
                 : Text('Post'),

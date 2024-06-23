@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:localink_sm/models/user.dart' as model;
+import 'package:localink_sm/screens/event_form_signup.dart';
+import 'package:localink_sm/screens/locamap_screen.dart';
 import 'package:localink_sm/utils/colors.dart';
 import 'package:localink_sm/utils/utils.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -21,6 +23,7 @@ class _EventDetailsState extends State<EventDetails> {
   DocumentSnapshot<Map<String, dynamic>>? event;
   int _currentPage = 0;
   model.User? userData;
+  bool isSignedUp = false;
 
   PageController _pageController = PageController();
 
@@ -47,35 +50,105 @@ class _EventDetailsState extends State<EventDetails> {
     }
   }
 
-  Future<void> _signUpForEvent() async {
-    try {
-      String userId = FirebaseAuth.instance.currentUser!.uid;
-      var eventDoc =
-          FirebaseFirestore.instance.collection('events').doc(widget.eventId);
-      var attendeesCollection = eventDoc.collection('attendees');
+  Future<void> _checkIfSignedUp() async {
+    String userId = FirebaseAuth.instance.currentUser!.uid;
+    var eventDoc =
+        FirebaseFirestore.instance.collection('events').doc(widget.eventId);
+    var attendeesCollection = eventDoc.collection('attendees');
 
-      var attendeesSnapshot = await attendeesCollection.get();
-      int maxAttendees = event!['maxAttendees'];
+    var attendeeDoc = await attendeesCollection.doc(userId).get();
+    setState(() {
+      isSignedUp = attendeeDoc.exists;
+    });
+  }
 
-      if (attendeesSnapshot.docs.any((doc) => doc.id == userId)) {
-        showSnackBar('You are already signed up for this event.', context);
-        return;
-      }
+ Future<void> _signUpForEvent() async {
+  try {
+    String userId = FirebaseAuth.instance.currentUser!.uid;
+    var eventDoc =
+        FirebaseFirestore.instance.collection('events').doc(widget.eventId);
+    var attendeesCollection = eventDoc.collection('attendees');
 
-      if (maxAttendees != -1 && attendeesSnapshot.docs.length >= maxAttendees) {
-        showSnackBar(
-            'This event has reached its maximum number of attendees.', context);
-        return;
-      }
+    var attendeesSnapshot = await attendeesCollection.get();
+    int maxAttendees = event!['maxAttendees'];
 
-      await attendeesCollection.doc(userId).set({
-        'userId': userId,
-        'signedUpAt': FieldValue.serverTimestamp(),
+    if (attendeesSnapshot.docs.any((doc) => doc.id == userId)) {
+      showSnackBar('You are already signed up for this event.', context);
+      return;
+    }
+
+    if (maxAttendees != -1 && attendeesSnapshot.docs.length >= maxAttendees) {
+      showSnackBar(
+          'This event has reached its maximum number of attendees.', context);
+      return;
+    }
+
+    await attendeesCollection.doc(userId).set({
+      'userId': userId,
+      'signedUpAt': FieldValue.serverTimestamp(),
+    });
+
+    // Decrease the maxAttendees count
+    if (maxAttendees != -1) {
+      await eventDoc.update({
+        'maxAttendees': FieldValue.increment(-1),
+      });
+    }
+
+    showSnackBar('You have successfully signed up for the event.', context);
+    setState(() {
+      isSignedUp = true;
+    });
+
+    // Navigate back to the LocaMap page and remove previous routes
+  } catch (e) {
+    showSnackBar(e.toString(), context);
+  }
+}
+
+Future<void> _unsubscribeFromEvent() async {
+  try {
+    String userId = FirebaseAuth.instance.currentUser!.uid;
+    var eventDoc =
+        FirebaseFirestore.instance.collection('events').doc(widget.eventId);
+    var attendeesCollection = eventDoc.collection('attendees');
+
+    await attendeesCollection.doc(userId).delete();
+
+    // Increase the maxAttendees count
+    if (event!['maxAttendees'] != -1) {
+      await eventDoc.update({
+        'maxAttendees': FieldValue.increment(1),
+      });
+    }
+
+    showSnackBar('You have successfully unsubscribed from the event.', context);
+    setState(() {
+      isSignedUp = false;
+    });
+
+    // Navigate back to the LocaMap page and remove previous routes
+ 
+  } catch (e) {
+    showSnackBar(e.toString(), context);
+  }
+}
+
+
+  void _navigateToSignUpForm() async {
+    bool? success = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => EventSignUpForm(event: event!),
+      ),
+    );
+
+    if (success == true) {
+      setState(() {
+        isSignedUp = true;
       });
 
-      showSnackBar('You have successfully signed up for the event.', context);
-    } catch (e) {
-      showSnackBar(e.toString(), context);
+      // Navigate back to the LocaMap page and remove previous routes
+      Navigator.of(context).popUntil((route) => route.isFirst);
     }
   }
 
@@ -96,6 +169,7 @@ class _EventDetailsState extends State<EventDetails> {
       });
 
       _fetchUserData(event?['organizer']);
+      _checkIfSignedUp();
     } catch (e) {
       showSnackBar(
         e.toString(),
@@ -150,6 +224,7 @@ class _EventDetailsState extends State<EventDetails> {
                                 title: Text(userData?.username ?? 'No Title'),
                               ),
                             ),
+                           
                           ],
                         ),
                         event!['imageUrls'] != null
@@ -212,9 +287,7 @@ class _EventDetailsState extends State<EventDetails> {
                                 padding: const EdgeInsets.all(8.0),
                                 child: Text('No Images Available'),
                               ),
-
                         SizedBox(height: 10),
-
                         Text(
                           event!['name'] ?? 'No Title',
                           style: const TextStyle(
@@ -229,7 +302,6 @@ class _EventDetailsState extends State<EventDetails> {
                             fontSize: 14,
                           ),
                         ),
-                        // Add other event details here
                         SizedBox(height: 20),
                         Expanded(
                           child: Align(
@@ -258,27 +330,9 @@ class _EventDetailsState extends State<EventDetails> {
                                     ),
                                   ),
                                 ),
-                                SizedBox(
-                                    width:
-                                        16), // Add some spacing between the buttons
+                                SizedBox(width: 16),
                                 Expanded(
-                                  child: ElevatedButton(
-                                    onPressed: () => _signUpForEvent(),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: highlightColor,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(16.0),
-                                      ),
-                                    ),
-                                    child: Text(
-                                      'Sign Up',
-                                      style: TextStyle(
-                                        color: primaryColor,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                  ),
+                                  child: _buildSignUpButton(),
                                 ),
                               ],
                             ),
@@ -289,6 +343,69 @@ class _EventDetailsState extends State<EventDetails> {
                   : Center(child: Text('Event not found')),
         ),
       ),
+    );
+  }
+
+  Widget _buildSignUpButton() {
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('events')
+          .doc(widget.eventId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return ElevatedButton(
+            onPressed: null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: highlightColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16.0),
+              ),
+            ),
+            child: Text(
+              'Loading...',
+              style: TextStyle(
+                color: primaryColor,
+                fontSize: 16,
+              ),
+            ),
+          );
+        }
+
+        var event = snapshot.data!;
+        var extraFields = event['extraFields'] ?? [];
+        int maxAttendees = event['maxAttendees'] ?? -1;
+        bool isFull = maxAttendees != -1 && maxAttendees <= 0;
+
+        return ElevatedButton(
+          onPressed: isSignedUp
+              ? _unsubscribeFromEvent
+              : (isFull
+                  ? null
+                  : (extraFields.isNotEmpty)
+                      ? _navigateToSignUpForm
+                      : _signUpForEvent),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: isSignedUp ? Colors.red : highlightColor,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16.0),
+            ),
+          ),
+          child: Text(
+            isSignedUp
+                ? 'Unsubscribe'
+                : (isFull
+                    ? 'Event Full'
+                    : (extraFields.isNotEmpty)
+                        ? 'Fill Form'
+                        : 'Sign Up'),
+            style: TextStyle(
+              color: primaryColor,
+              fontSize: 16,
+            ),
+          ),
+        );
+      },
     );
   }
 }

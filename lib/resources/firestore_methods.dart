@@ -1,10 +1,8 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:localink_sm/models/ARitem.dart';
 import 'package:localink_sm/models/post_interaction.dart';
 import 'package:localink_sm/models/report.dart';
 import 'package:localink_sm/resources/storage_methods.dart';
@@ -26,6 +24,10 @@ class FireStoreMethods {
     File mediaFile,
     double latitude,
     double longitude,
+    bool isVisitor,
+    String privacy, // New parameter
+    DateTime? scheduledDate, // New parameter
+    //List<String> tags // New parameter
   ) async {
     try {
       FirebaseFirestore firestore = FirebaseFirestore.instance;
@@ -35,29 +37,32 @@ class FireStoreMethods {
 
       CollectionReference posts = firestore.collection('posts');
 
-      DocumentReference newPostRef = await posts.add({
+      Map<String, dynamic> postData = {
         'uid': uid,
         'caption': caption,
-        'createdDatetime': FieldValue.serverTimestamp(),
+        'createdDatetime': scheduledDate ?? FieldValue.serverTimestamp(),
         'postType': postTypeRef,
         'longitude': longitude,
         'latitude': latitude,
-        'locationName': await LocationUtils.getAddressFromLatLng(
-          latitude,
-          longitude,
-        ),
+        'locationName':
+            await LocationUtils.getAddressFromLatLng(latitude, longitude),
         'hashtags':
             regex.allMatches(caption).map((match) => match.group(0)!).toList(),
-      });  
-       String postId = newPostRef.id;
+        'isVisitor': isVisitor,
+        'privacy': privacy, // New field
+        //'tags': tags, // New field
+      };
+
+      DocumentReference newPostRef = await posts.add(postData);
+      String postId = newPostRef.id;
 
       await newPostRef.update({
         'id': postId,
       });
       await _createPostMedia(newPostRef.id, newPostRef, mediaFile);
-      return ('success');
+      return 'success';
     } catch (e) {
-      return ('Error creating post: $e');
+      return 'Error creating post: $e';
     }
   }
 
@@ -69,10 +74,14 @@ class FireStoreMethods {
     try {
       String mediaUrl =
           await StorageMethods().uploadMediaToStorage(postId, mediaFile);
+
+      // Update Firestore with the temporary URL
       await postRef.collection('postMedia').add({
         'postId': postId,
         'mediaUrl': mediaUrl,
       });
+
+      // The Firebase Function will handle updating Firestore with the transcoded URL
     } catch (e) {
       print('Error creating post media: $e');
     }
@@ -84,6 +93,7 @@ class FireStoreMethods {
     String postTypeName,
     double latitude,
     double longitude,
+    bool isVisitor,
   ) async {
     try {
       FirebaseFirestore firestore = FirebaseFirestore.instance;
@@ -106,6 +116,7 @@ class FireStoreMethods {
         ),
         'hashtags':
             regex.allMatches(caption).map((match) => match.group(0)!).toList(),
+        'isVisitor': isVisitor,
       });
       String postId = newPostRef.id;
 
@@ -235,13 +246,17 @@ class FireStoreMethods {
       DocumentSnapshot reactionDoc =
           await reactionsCollection.doc(userId).get();
 
+      DocumentReference postRef = _firestore.collection('posts').doc(postId);
+
       if (reactionDoc.exists) {
         await reactionsCollection.doc(userId).delete();
+        await postRef.update({'likesCount': FieldValue.increment(-1)});
         res = "unliked";
         await _addLikeToHistory(userId, postId, postCreatorId, res);
       } else {
         Reaction reaction = Reaction(id: userId, postId: postId, uid: userId);
         await reactionsCollection.doc(userId).set(reaction.toJson());
+        await postRef.update({'likesCount': FieldValue.increment(1)});
         res = "liked";
         await _addLikeToHistory(userId, postId, postCreatorId, res);
       }
@@ -399,39 +414,12 @@ class FireStoreMethods {
     }
   }
 
-  Future<String> uploadARItem(String name, String description,
-      GeoPoint location, Uint8List modelFile, ItemType type) async {
-    String res = "Some error occurred";
-    try {
-      String modelUrl =
-          await StorageMethods().uploadARImageToStorage('arItems', modelFile);
-
-      String itemId = const Uuid().v1();
-
-      ARItem arItem = ARItem(
-        id: itemId,
-        name: name,
-        description: description,
-        location: location,
-        modelUrl: modelUrl,
-        type: type,
-      );
-
-      _firestore.collection('arItems').doc(itemId).set(arItem.toJson());
-      res = "success";
-    } catch (err) {
-      res = err.toString();
-    }
-    return res;
-  }
-
   Future<String?> sendMessage({
     String? conversationId,
     required String senderId,
     String? messageText,
     Uint8List? mediaBytes,
-    String? sharedPostId, // New parameter for shared post ID
-
+    String? sharedPostId,
     required String messageType,
     List<String>? participantIDs,
   }) async {
@@ -443,12 +431,12 @@ class FireStoreMethods {
           'message_media/$conversationId', mediaBytes, false);
       content = mediaUrl;
     } else if (messageType == 'post' && sharedPostId != null) {
-      content =
-          sharedPostId; // Here you could just use the post ID to identify the shared post
+      content = sharedPostId;
     } else {
       throw 'No content to send';
     }
 
+    // If conversationId is null, try to find or create a conversation
     if (conversationId == null) {
       if (participantIDs == null || participantIDs.isEmpty) {
         throw 'Participant IDs must be provided to create a new conversation';
@@ -467,7 +455,9 @@ class FireStoreMethods {
     };
 
     await _firestore
-        .collection('conversations/$conversationId/messages')
+        .collection('conversations')
+        .doc(conversationId)
+        .collection('messages')
         .add(message);
 
     await _firestore.collection('conversations').doc(conversationId).update({
@@ -500,6 +490,22 @@ class FireStoreMethods {
     return conversationId;
   }
 
+  Future<String> createConversation(List<String> participantIDs) async {
+    participantIDs.sort();
+    String participantsKey = participantIDs.join('_');
+
+    DocumentReference conversation =
+        await _firestore.collection('conversations').add({
+      'participantIDs': participantIDs,
+      'participantsKey': participantsKey,
+      'lastMessage': '',
+      'lastMessageTimestamp': FieldValue.serverTimestamp(),
+      'unreadCounts': {for (var id in participantIDs) id: 0},
+    });
+
+    return conversation.id;
+  }
+
   Stream<QuerySnapshot> getMessages(String conversationId) {
     return _firestore
         .collection('conversations/$conversationId/messages')
@@ -509,30 +515,25 @@ class FireStoreMethods {
 
   Future<void> resetUnreadCount(String conversationId, String userId) async {
     try {
-      String fieldPath = 'unreadCounts.$userId';
-
-      await FirebaseFirestore.instance
+      DocumentSnapshot conversationSnapshot = await FirebaseFirestore.instance
           .collection('conversations')
           .doc(conversationId)
-          .update({
-        fieldPath: 0,
-      });
+          .get();
+
+      if (conversationSnapshot.exists) {
+        String fieldPath = 'unreadCounts.$userId';
+        await FirebaseFirestore.instance
+            .collection('conversations')
+            .doc(conversationId)
+            .update({
+          fieldPath: 0,
+        });
+      } else {
+        print('Conversation does not exist, cannot reset unread count.');
+      }
     } catch (e) {
       print('Error resetting unread count: $e');
     }
-  }
-
-  Future<String> createConversation(List<String> participantIDs) async {
-    participantIDs.sort();
-    String participantsKey = participantIDs.join('_');
-
-    DocumentReference conversation =
-        await _firestore.collection('conversations').add({
-      'participantIDs': participantIDs,
-      'participantsKey': participantsKey,
-    });
-
-    return conversation.id;
   }
 
   Future<void> updateUserLastActive(String userId) async {
@@ -553,6 +554,8 @@ class FireStoreMethods {
         .get();
 
     if (conversationSnapshot.docs.isEmpty) {
+      createConversation(participantIDs);
+
       return {'conversationId': '', 'lastMessage': 'Start a conversation!!'};
     } else {
       final doc = conversationSnapshot.docs.first;

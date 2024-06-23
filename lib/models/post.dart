@@ -9,18 +9,26 @@ class Post {
   final double longitude;
   final double latitude;
   final String locationName;
-  final List<dynamic> hashtags;
+  final List<String> hashtags;
+  final int likesCount;
+  final String privacy; // New field
+  
+ // final List<String> tags; // New field
 
-  const Post(
-      {required this.id,
-      required this.uid,
-      required this.createdDatetime,
-      required this.caption,
-      required this.postType,
-      required this.longitude,
-      required this.latitude,
-      required this.locationName,
-      required this.hashtags});
+  const Post({
+    required this.id,
+    required this.uid,
+    required this.createdDatetime,
+    required this.caption,
+    required this.postType,
+    required this.longitude,
+    required this.latitude,
+    required this.locationName,
+    required this.hashtags,
+    required this.likesCount,
+    required this.privacy, // New field
+    //required this.tags, // New field
+  });
 
   static Post fromSnap(DocumentSnapshot snap) {
     var snapshot = snap.data() as Map<String, dynamic>;
@@ -34,6 +42,9 @@ class Post {
       latitude: snapshot['latitude'],
       locationName: snapshot['locationName'],
       hashtags: (snapshot['hashtags'] as List<dynamic>).cast<String>(),
+      likesCount: snapshot['likesCount'] ?? 0,
+      privacy: snapshot['privacy'], // New field
+     // tags: (snapshot['tags'] as List<dynamic>).cast<String>(), // New field
     );
   }
 
@@ -47,5 +58,8 @@ class Post {
         "latitude": latitude,
         "locationName": locationName,
         "hashtags": hashtags,
+        "likesCount": likesCount,
+        "privacy": privacy, // New field
+      // "tags": tags, // New field
       };
 }

@@ -9,6 +9,7 @@ import 'package:localink_sm/screens/swipy_screen.dart';
 
 const webScreenSize = 600;
 
+
 List<Widget> homeScreenItems = [
   FeedScreen(),
   SearchScreen(),
@@ -17,5 +18,5 @@ List<Widget> homeScreenItems = [
   ProfileScreen(
     uid: FirebaseAuth.instance.currentUser!.uid,
   ),
-  AddPostScreen(),
+  //AddPostScreen(),
 ];

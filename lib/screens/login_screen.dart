@@ -1,3 +1,6 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:localink_sm/providers/user_provider.dart';
@@ -29,6 +32,32 @@ class _LoginScreenState extends State<LoginScreen> {
     _emailController.dispose();
     _passwordController.dispose();
   }
+ Future<void> saveDeviceToken(String userId) async {
+    FirebaseMessaging messaging = FirebaseMessaging.instance;
+    String? token = await messaging.getToken();
+    print(token);
+    if (token != null) {
+      DocumentReference userRef =
+          FirebaseFirestore.instance.collection('users').doc(userId);
+
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        DocumentSnapshot snapshot = await transaction.get(userRef);
+
+        if (!snapshot.exists) {
+          throw Exception("User does not exist!");
+        }
+
+        Map<String, dynamic> userData = snapshot.data() as Map<String, dynamic>;
+        List<String> tokens = List<String>.from(userData['tokens'] ?? []);
+
+        if (!tokens.contains(token)) {
+          tokens.add(token);
+          transaction.update(userRef, {'tokens': tokens});
+        }
+      });
+    }
+  }
+
 
   void loginUser() async {
     setState(() {
@@ -41,8 +70,9 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
 
     if (res == "success") {
-      await Provider.of<UserProvider>(context, listen: false).refreshUser();
-
+      // Save the device token after a successful login
+      String userId = FirebaseAuth.instance.currentUser!.uid;
+      await saveDeviceToken(userId);
       if (mounted) {
         Navigator.of(context).pushReplacement(MaterialPageRoute(
           builder: (context) => const ResponsiveLayout(

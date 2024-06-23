@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/svg.dart';
@@ -38,7 +39,6 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
   Map<String, Symbol> eventMarkers = {};
   late AnimationController _animationController;
   late Animation<double> _animation;
-
   Map<String, Circle> eventCircles = {};
   bool isBusinessAccount = false;
 
@@ -88,12 +88,100 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
     return null;
   }
 
+  Future<Uint8List> loadImageFromAssets2(String path) async {
+    final ByteData data = await rootBundle.load(path);
+    return data.buffer.asUint8List();
+  }
+
   void _onMapCreated(MapboxMapController controller) {
     setState(() {
       mapController = controller;
       mapController!.onSymbolTapped.add(_onSymbolTapped);
     });
+
     print("Map controller initialized.");
+  }
+
+  Future<void> _addImageFromStorage() async {
+    try {
+      // Get the current user's ID
+      String userId = FirebaseAuth.instance.currentUser!.uid;
+
+      // Get the reference to the image in Firebase Storage
+      Reference ref =
+          FirebaseStorage.instance.ref('user_pins/$userId/normal_pin.png');
+
+      // Download the image as Uint8List
+      final Uint8List? list = await ref.getData();
+
+      if (list != null) {
+        // Add image to the map
+        await mapController?.addImage("mapPin", list);
+        print("Image added to the map.");
+      } else {
+        print("Image not found in storage.");
+      }
+    } catch (e) {
+      print("Error adding image: $e");
+    }
+  }
+
+  Future<void> _addSource() async {
+    var locationService = LocationService();
+    var currentLocation = locationService.currentLocation;
+
+    try {
+      await mapController?.addSource(
+        "my-source",
+        GeojsonSourceProperties(
+          data: {
+            "type": "FeatureCollection",
+            "features": [
+              {
+                "type": "Feature",
+                "geometry": {
+                  "type": "Point",
+                  "coordinates": [
+                    currentLocation?.longitude,
+                    currentLocation?.latitude
+                  ]
+                },
+                "properties": {"title": "Mapbox DC", "icon": "mapPin"}
+              }
+            ]
+          },
+        ),
+      );
+      print("Source added to the map.");
+    } catch (e) {
+      print("Error adding source: $e");
+    }
+  }
+
+  void _refreshMap() {
+    // Your logic to refresh the map goes here
+    setState(() {
+      // Update the state to refresh the map
+    });
+  }
+
+  Future<void> _addSymbolLayer() async {
+    try {
+      await mapController?.addSymbolLayer(
+        "my-source",
+        "my-symbol-layer",
+        const SymbolLayerProperties(
+          iconImage: "mapPin",
+          iconSize: 1.2,
+          textSize: 12.0,
+          textOffset: [0, 1.5],
+          textAnchor: "top",
+        ),
+      );
+      print("Symbol layer added to the map.");
+    } catch (e) {
+      print("Error adding symbol layer: $e");
+    }
   }
 
   void _onStyleLoaded() {
@@ -105,11 +193,13 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
     }
   }
 
-  void _initializeMapFeatures() {
-    _showUserLocationBasic();
-    _loadDetailedUserLocation();
+  Future<void> _initializeMapFeatures() async {
     _showFriendsLocationsRealTime();
     _showEventsLocations();
+    _showUserLocationBasic();
+    await _addImageFromStorage();
+    await _addSource();
+    await _addSymbolLayer();
   }
 
   void _checkAndRequestLocationPermission() async {
@@ -129,43 +219,55 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
     }
   }
 
-  void _showFriendsLocationsRealTime() {
-    var user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .snapshots()
-          .listen((userDoc) {
-        var following = List<String>.from(userDoc.data()?['following'] ?? []);
-        for (String friendId in following) {
-          FirebaseFirestore.instance
-              .collection('user_locations')
-              .doc(friendId)
-              .snapshots()
-              .listen((friendLocationDoc) async {
-            try {
-              if (friendLocationDoc.exists) {
-                bool isOnline = await isFriendOnline(friendId);
-                if (isOnline) {
-                  var locData = friendLocationDoc.data()!;
-                  LatLng friendLatLng =
-                      LatLng(locData['latitude'], locData['longitude']);
-                  _updateOrRemoveFriendMarker(friendId, friendLatLng);
-                } else {
-                  _removeFriendMarker(friendId);
-                }
+Future<Uint8List> _getFriendPin(String userId) async {
+  // Assuming the pin is stored as `normal_pin.png` in `user_pins/{userId}/`
+  Reference ref = FirebaseStorage.instance.ref('user_pins/$userId/normal_pin.png');
+  Uint8List? pinImage = await ref.getData();
+  if (pinImage != null) {
+    return pinImage;
+  } else {
+    throw Exception('Pin image not found for user: $userId');
+  }
+}
+
+ void _showFriendsLocationsRealTime() {
+  var user = FirebaseAuth.instance.currentUser;
+  if (user != null) {
+    FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .snapshots()
+        .listen((userDoc) {
+      var following = List<String>.from(userDoc.data()?['following'] ?? []);
+      for (String friendId in following) {
+        FirebaseFirestore.instance
+            .collection('user_locations')
+            .doc(friendId)
+            .snapshots()
+            .listen((friendLocationDoc) async {
+          try {
+            if (friendLocationDoc.exists) {
+              bool isOnline = await isFriendOnline(friendId);
+              if (isOnline) {
+                var locData = friendLocationDoc.data()!;
+                LatLng friendLatLng =
+                    LatLng(locData['latitude'], locData['longitude']);
+                Uint8List pinImage = await _getFriendPin(friendId);
+                _updateOrRemoveFriendMarker(friendId, friendLatLng, pinImage);
               } else {
                 _removeFriendMarker(friendId);
               }
-            } catch (e) {
-              print("Error handling friend locations: $e");
+            } else {
+              _removeFriendMarker(friendId);
             }
-          });
-        }
-      });
-    }
+          } catch (e) {
+            print("Error handling friend locations: $e");
+          }
+        });
+      }
+    });
   }
+}
 
   bool _isWithinRange(LatLng friendLatLng) {
     // Assuming LocationService keeps the latest location updated
@@ -186,24 +288,35 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
     return distance <= 700; // Check if the distance is within 700 meters
   }
 
-  void _addFriendMarker(String friendId, LatLng location) {
-    if (friendMarkers.containsKey(friendId)) {
-      // Update existing marker
-      mapController?.updateSymbol(
-          friendMarkers[friendId]!, SymbolOptions(geometry: location));
-    } else {
-      // Add new marker and store it in the map
-      mapController
-          ?.addSymbol(SymbolOptions(
+ void _addFriendMarker(String friendId, LatLng location, Uint8List pinImage) {
+  if (friendMarkers.containsKey(friendId)) {
+    // Update existing marker
+    mapController?.updateSymbol(
+      friendMarkers[friendId]!,
+      SymbolOptions(
         geometry: location,
-        iconImage: 'assets/icons/mapPin2.png',
-        iconSize: 0.8,
-      ))
-          .then( (symbol) {
+        zIndex: 1,
+      ),
+    );
+  } else {
+    // Add the image to the map and then add the marker
+    mapController?.addImage(friendId, pinImage).then((_) {
+      mapController?.addSymbol(
+        SymbolOptions(
+          geometry: location,
+          iconImage: friendId, // Use the friendId as the identifier for the image
+          iconSize: 0.8,
+          zIndex: 1,
+        ),
+      ).then((symbol) {
         friendMarkers[friendId] = symbol;
       });
-    }
+    }).catchError((error) {
+      print('Error adding image: $error');
+    });
   }
+}
+
 
   Future<bool> isFriendOnline(String friendId) async {
     DatabaseReference ref = databaseReference.ref('status/$friendId/online');
@@ -213,10 +326,10 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
 
   OnlineStatusCache onlineStatusCache = OnlineStatusCache();
 
-  void _updateOrRemoveFriendMarker(String friendId, LatLng location) async {
+  void _updateOrRemoveFriendMarker(String friendId, LatLng location,Uint8List  pinImage) async {
     bool online = await onlineStatusCache.isFriendOnline(friendId);
     if (online && _isWithinRange(location)) {
-      _addFriendMarker(friendId, location);
+      _addFriendMarker(friendId, location,pinImage);
     } else {
       _removeFriendMarker(friendId);
     }
@@ -239,19 +352,17 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
   }
 
   double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
-    const double R = 6371e3; // Earth radius in meters
-    double phi1 = lat1 * pi / 180; // lat1 to radians
-    double phi2 = lat2 * pi / 180; // lat2 to radians
-    double deltaPhi =
-        (lat2 - lat1) * pi / 180; // difference in latitude in radians
-    double deltaLambda =
-        (lon2 - lon1) * pi / 180; // difference in longitude in rads
+    const double R = 6371e3;
+    double phi1 = lat1 * pi / 180;
+    double phi2 = lat2 * pi / 180;
+    double deltaPhi = (lat2 - lat1) * pi / 180;
+    double deltaLambda = (lon2 - lon1) * pi / 180;
 
     double a = sin(deltaPhi / 2) * sin(deltaPhi / 2) +
         cos(phi1) * cos(phi2) * sin(deltaLambda / 2) * sin(deltaLambda / 2);
     double c = 2 * atan2(sqrt(a), sqrt(1 - a));
 
-    return R * c; // Distance in meters
+    return R * c;
   }
 
   Future<void> _showUserLocationBasic() async {
@@ -261,9 +372,14 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
         currentLocation.latitude != null &&
         currentLocation.longitude != null) {
       _addBasicUserLocationPin(currentLocation);
+      String address = await LocationUtils.getAddressFromLatLng(
+        currentLocation.latitude!,
+        currentLocation.longitude!,
+      );
       setState(() {
         userLocation =
             '${currentLocation.latitude}, ${currentLocation.longitude}';
+        userLocation = address;
       });
     } else {
       print("Location is not available or incomplete.");
@@ -290,6 +406,7 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
       mapController?.addSymbol(SymbolOptions(
         geometry: latLng,
         iconImage: 'assets/icons/mapPin2.png',
+        zIndex: 3, // Set a higher zIndex value
       ));
       mapController?.animateCamera(CameraUpdate.newLatLng(latLng));
       mapController
@@ -333,6 +450,7 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
               LatLng(currentLocation.latitude!, currentLocation.longitude!),
           iconImage: networkImageUrl,
           iconSize: 0.8,
+          zIndex: 3, // Set a higher zIndex value
         ));
 
         setState(() {
@@ -410,9 +528,7 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
 
   final ArgumentCallbacks<Symbol> onSymbolTapped = ArgumentCallbacks<Symbol>();
 
-  
-
-  Future<Uint8List> createCustomMarkerImage(
+  /*  Future<Uint8List> createCustomMarkerImage(
       ui.Image pinImage, ui.Image userImage) async {
     final double imageSize = pinImage.width / 2;
     final Offset imageOffset = Offset((pinImage.width - imageSize) / 2,
@@ -441,7 +557,7 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
     final ByteData? byteData =
         await compositeImage.toByteData(format: ui.ImageByteFormat.png);
     return byteData!.buffer.asUint8List();
-  }
+  } */
 
   void _showEventsLocations() {
     var user = FirebaseAuth.instance.currentUser;
@@ -467,10 +583,15 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
     }
   }
 
-  void _addEventMarker(String eventId, LatLng location, String pinUrl, String pinColor) async {
+  void _addEventMarker(
+      String eventId, LatLng location, String pinUrl, String pinColor) async {
     if (eventMarkers.containsKey(eventId)) {
       mapController?.updateSymbol(
-          eventMarkers[eventId]!, SymbolOptions(geometry: location));
+          eventMarkers[eventId]!,
+          SymbolOptions(
+            geometry: location,
+            zIndex: 0,
+          ));
     } else {
       if (!imageCache.containsKey(pinUrl)) {
         try {
@@ -491,8 +612,8 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
     }
   }
 
-  void _addEventCircle(
-      String eventId, LatLng location, VoidCallback onComplete, String pinColor) {
+  void _addEventCircle(String eventId, LatLng location, VoidCallback onComplete,
+      String pinColor) {
     if (mapController == null) return;
     CircleOptions circleOptions = CircleOptions(
       geometry: location,
@@ -517,14 +638,15 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
     }
 
     // Add new symbol
-    mapController
-        ?.addSymbol(SymbolOptions(
-      geometry: location,
-      iconImage: eventId, // Use the eventId as the image identifier
-      iconSize: 0.8,
-      
-    ),{'id': eventId},)
-        .then((symbol) {
+    mapController?.addSymbol(
+      SymbolOptions(
+        geometry: location,
+        iconImage: eventId, // Use the eventId as the image identifier
+        iconSize: 0.8,
+        zIndex: 0, // Lower zIndex for events
+      ),
+      {'id': eventId},
+    ).then((symbol) {
       eventMarkers[eventId] = symbol;
     });
   }
@@ -562,52 +684,47 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
     mapController?.addImage(name, imageBytes);
   }
 
-
   void _onSymbolTapped(Symbol symbol) {
-    // Check if symbol.data is not null
     if (symbol.data != null && symbol.data!.containsKey('id')) {
       String tappedSymbolId = symbol.data!['id'].toString();
       _showEventInformation(tappedSymbolId);
       print('Tapped on symbol with id: $tappedSymbolId');
-      // Perform any action here based on the tapped symbol
     } else {
       print('Symbol data is null or does not contain an id.');
     }
   }
 
- void _showEventInformation(String eventId) {
-  showDialog(
-    context: context,
-    barrierDismissible: true, // Dismissing the dialog by tapping outside of it
-    builder: (BuildContext context) {
-      return Dialog(
-        backgroundColor: Colors.transparent, // Transparent background to apply custom decoration
-        child: Stack(
-          clipBehavior: Clip.none,
-          alignment: Alignment.center,
-          children: <Widget>[
-            // EventDetails widget is called here
-            EventDetails(eventId: eventId),
-            Positioned(
-              right: -15.0, // Adjust position as needed
-              top: -15.0, // Adjust position as needed
-              child: InkResponse(
-                onTap: () {
-                  Navigator.of(context).pop(); // Close the dialog
-                },
-                child: const CircleAvatar(
-                  child: Icon(Icons.close),
-                  backgroundColor: highlightColor,
+  void _showEventInformation(String eventId) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: <Widget>[
+              EventDetails(eventId: eventId),
+              Positioned(
+                right: -15.0,
+                top: -15.0,
+                child: InkResponse(
+                  onTap: () {
+                    Navigator.of(context).pop(false);
+                  },
+                  child: const CircleAvatar(
+                    child: Icon(Icons.close),
+                    backgroundColor: highlightColor,
+                  ),
                 ),
               ),
-            ),
-          ],
-        ),
-      );
-    },
-  );
-}
-
+            ],
+          ),
+        );
+      },
+    );
+  }
 
 //ios: sk.eyJ1IjoibW9oYW1tYWRzb3FhcjEwMSIsImEiOiJjbHVkYzVrMzEwbjFpMmxuenpxM2Eybm5nIn0.S4pjUr0pwYqsJOzpJo73vQ
   @override
@@ -632,36 +749,36 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
           AnnotationType.symbol,
         ],
       ),
-      isBusinessAccount?
-      Positioned(
-          top: 50,
-          right: 0,
-          child: TextButton(
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => AddEventPage(),
+      isBusinessAccount
+          ? Positioned(
+              top: 50,
+              right: 0,
+              child: TextButton(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => AddEventPage(),
+                    ),
+                  );
+                },
+                style: TextButton.styleFrom(
+                  backgroundColor: highlightColor,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16.0),
+                  ),
                 ),
-              );
-            },
-            style: TextButton.styleFrom(
-              backgroundColor: highlightColor,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16.0),
-              ),
-            ),
-             
-            child: const Padding(
-              padding: EdgeInsets.symmetric(vertical: 0, horizontal: 30.0),
-              child: Text(
-                'Add Event',
-                style: TextStyle(
-                  color: primaryColor,
-                  fontSize: 16,
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 0, horizontal: 30.0),
+                  child: Text(
+                    'Add Event',
+                    style: TextStyle(
+                      color: primaryColor,
+                      fontSize: 16,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-          )) : Container(),
+              ))
+          : Container(),
       Positioned(
         bottom: 0,
         left: 0,

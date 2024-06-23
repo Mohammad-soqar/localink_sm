@@ -13,7 +13,10 @@ const Color secondaryColor = Color(
     0xFF282828); // Assuming secondary color is the same as the background for certain elements
 const Color highlightColor =
     Color(0xFF2AF89B); // Highlight color, used for buttons and icons
-
+    const Color highlightColorMessages =
+    Color(0xFF1FAA59); 
+const Color highlightColor2 =
+    Color.fromARGB(255, 24, 180, 110); 
 
 Color darkerHighlightColor1 = Color.lerp(highlightColor, Colors.black, 0.2)!; // 20% darker
 Color darkerHighlightColor2 = Color.lerp(highlightColor, Colors.black, 0.4)!; // 40% darker

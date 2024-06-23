@@ -1,8 +1,7 @@
+/* // ignore_for_file: use_build_context_synchronously
+
 import 'dart:io';
 import 'dart:typed_data';
-
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:localink_sm/models/user.dart' as model;
@@ -47,6 +46,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
           mediaFile,
           longitude,
           latitude,
+
         );
 
         if (true) {
@@ -61,10 +61,8 @@ class _AddPostScreenState extends State<AddPostScreen> {
           ));
           showSnackBar('Posted!', context);
           clearImage();
+        // ignore: dead_code
         } else {
-          setState(() {
-            _isLoading = false;
-          });
         }
       }
     } catch (err) {
@@ -153,7 +151,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
         ),
         title: const Text('Post to'),
         centerTitle: false,
-        actions: [
+        actions: const [
         
         ],
       ),
@@ -163,7 +161,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
               ? const LinearProgressIndicator(
                   color: highlightColor,
                 )
-              : Padding(
+              : const Padding(
                   padding: EdgeInsets.only(top: 0),
                 ),
           const Divider(),
@@ -219,3 +217,4 @@ class _AddPostScreenState extends State<AddPostScreen> {
     );
   }
 }
+ */
