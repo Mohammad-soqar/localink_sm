@@ -15,7 +15,8 @@ class Event {
   final String pinUrl;
   final String pinColor;
   final List<String> imageUrls;
-  final int maxAttendees; // Add this field
+  final int maxAttendees;
+  final List<Map<String, dynamic>> extraFields;
 
   Event({
     required this.id,
@@ -33,6 +34,7 @@ class Event {
     required this.imageUrls,
     this.status = 'pending',
     this.maxAttendees = -1, // Default to -1 for unlimited attendees
+    required this.extraFields,
   });
 
   static Event fromSnap(DocumentSnapshot snap) {
@@ -53,6 +55,9 @@ class Event {
       pinColor: snapshot['pinColor'],
       imageUrls: List<String>.from(snapshot['imageUrls']),
       maxAttendees: snapshot['maxAttendees'] ?? -1,
+      extraFields: snapshot['extraFields'] != null
+          ? List<Map<String, dynamic>>.from(snapshot['extraFields'])
+          : [],
     );
   }
 
@@ -73,6 +78,7 @@ class Event {
       'pinColor': pinColor,
       'imageUrls': imageUrls,
       'maxAttendees': maxAttendees,
+      'extraFields': extraFields,
     };
   }
 }

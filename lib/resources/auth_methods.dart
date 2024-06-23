@@ -10,13 +10,15 @@ class AuthMethods {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-   Future<model.User> getUserDetails() async {
+  Future<model.User> getUserDetails() async {
     User? currentUser = _auth.currentUser; // FirebaseAuth's User
     if (currentUser != null) {
-      DocumentSnapshot documentSnapshot = await _firestore.collection('users').doc(currentUser.uid).get();
+      DocumentSnapshot documentSnapshot =
+          await _firestore.collection('users').doc(currentUser.uid).get();
       if (documentSnapshot.exists) {
         return model.User.fromSnap(documentSnapshot);
       } else {
+        // Retry logic or handle the case where the document is not found
         throw Exception("User does not exist in Firestore");
       }
     } else {
@@ -40,14 +42,14 @@ class AuthMethods {
           username.isNotEmpty ||
           // ignore: unnecessary_null_comparison
           file != null) {
-        //register user
+        // Register user
         UserCredential credential = await _auth.createUserWithEmailAndPassword(
             email: email, password: password);
 
         String photoUrl = await StorageMethods()
             .uploadImageToStorage('profile_pictures', file, false);
-        //add user to our db
 
+        // Add user to our db
         model.User user = model.User(
             username: username,
             uid: credential.user!.uid,
@@ -61,6 +63,7 @@ class AuthMethods {
             .collection('users')
             .doc(credential.user!.uid)
             .set(user.toJson());
+
         res = "success";
       }
     } catch (err) {
@@ -93,4 +96,3 @@ class AuthMethods {
     await _auth.signOut();
   }
 }
- 

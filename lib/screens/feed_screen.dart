@@ -2,25 +2,40 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:localink_sm/models/user.dart' as model;
 import 'package:localink_sm/providers/user_provider.dart';
-import 'package:localink_sm/screens/chat_screen.dart';
+import 'package:localink_sm/screens/chats_screen.dart';
 import 'package:localink_sm/screens/create_post.dart';
+import 'package:localink_sm/screens/notification_screen.dart';
+import 'package:localink_sm/screens/notification_test_page.dart';
+import 'package:localink_sm/services/visiting_status.dart';
 import 'package:localink_sm/utils/colors.dart';
 import 'package:localink_sm/utils/location_service.dart';
 import 'package:localink_sm/utils/location_utils.dart';
 import 'package:localink_sm/utils/service_locator.dart';
 import 'package:localink_sm/widgets/map-picker.dart';
+import 'package:localink_sm/widgets/new_map_picker.dart';
 import 'package:localink_sm/widgets/post_card.dart';
 import 'package:localink_sm/widgets/updates_card.dart';
+import 'package:mapbox_gl/mapbox_gl.dart';
 import 'package:provider/provider.dart';
 
 class FeedScreen extends StatefulWidget {
-  const FeedScreen({Key? key}) : super(key: key);
+  final String? selectedOption;
+  final double? userLatitude;
+  final double? userLongitude;
+  final String? visitedAreaLocation;
+  const FeedScreen({
+    Key? key,
+    this.selectedOption,
+    this.userLatitude,
+    this.userLongitude,
+    this.visitedAreaLocation,
+  }) : super(key: key);
 
   @override
   _FeedScreenState createState() => _FeedScreenState();
@@ -29,6 +44,10 @@ class FeedScreen extends StatefulWidget {
 class _FeedScreenState extends State<FeedScreen> {
   final ScrollController _scrollController = ScrollController();
   String? userLocation;
+  String? visitedAreaLocation;
+  final ScrollController _visibilityScrollController =
+      ScrollController(); // New controller
+  bool _isVisible = true;
   late Stream<List<String>> followingListStream;
   String selectedOption = '';
   double userLatitude = 0.0;
@@ -37,21 +56,56 @@ class _FeedScreenState extends State<FeedScreen> {
   DocumentSnapshot? _lastDocument;
   List<DocumentSnapshot> _posts = []; // Posts to display
   bool _hasMorePosts = true; // Flag to check if more posts are available
+  final VisitingStatus visitingStatus = VisitingStatus();
 
   @override
   void initState() {
     super.initState();
     _determinePosition();
     followingListStream = _getUserFollowingList();
-
-    _scrollController.addListener(() {
-      if (_scrollController.position.pixels ==
-          _scrollController.position.maxScrollExtent) {
-        _fetchPosts();
-      }
-    });
+    selectedOption = widget.selectedOption ?? '';
+    userLatitude = widget.userLatitude ?? 0.0;
+    userLongitude = widget.userLongitude ?? 0.0;
+    visitedAreaLocation = widget.visitedAreaLocation;
+    _scrollController.addListener(_fetchPostsListener);
+    _visibilityScrollController
+        .addListener(_visibilityListener); // Add listener to new controller
 
     _fetchPosts();
+  }
+
+  void _fetchPostsListener() {
+    if (_scrollController.position.pixels ==
+        _scrollController.position.maxScrollExtent) {
+      _fetchPosts();
+    }
+  }
+
+  void _visibilityListener() {
+    if (_visibilityScrollController.position.userScrollDirection ==
+        ScrollDirection.reverse) {
+      if (_isVisible) {
+        setState(() {
+          _isVisible = false;
+        });
+      }
+    } else if (_visibilityScrollController.position.userScrollDirection ==
+        ScrollDirection.forward) {
+      if (!_isVisible) {
+        setState(() {
+          _isVisible = true;
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_fetchPostsListener);
+    _visibilityScrollController.removeListener(_visibilityListener);
+    _scrollController.dispose();
+    _visibilityScrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchPosts() async {
@@ -61,13 +115,11 @@ class _FeedScreenState extends State<FeedScreen> {
 
     Query query = FirebaseFirestore.instance
         .collection('posts')
-        .orderBy('createdDatetime',
-            descending: true) // Assuming you have a 'timestamp' field
-        .limit(10); // Fetch 10 documents at a time
+        .orderBy('createdDatetime', descending: true)
+        .limit(10);
 
     if (_lastDocument != null) {
-      query = query.startAfterDocument(
-          _lastDocument!); // Paginate using the last document
+      query = query.startAfterDocument(_lastDocument!);
     }
 
     String userId = FirebaseAuth.instance.currentUser!.uid;
@@ -78,7 +130,6 @@ class _FeedScreenState extends State<FeedScreen> {
 
     userFollowingList.add(userId);
 
-    // Assuming you only want posts from users the current user is following
     query = query.where('uid', whereIn: userFollowingList);
 
     QuerySnapshot querySnapshot = await query.get();
@@ -86,9 +137,8 @@ class _FeedScreenState extends State<FeedScreen> {
     if (querySnapshot.docs.isEmpty) {
       _hasMorePosts = false;
     } else {
-      _lastDocument =
-          querySnapshot.docs.last; // Keep track of the last document
-      _posts.addAll(querySnapshot.docs); // Add the fetched posts to the list
+      _lastDocument = querySnapshot.docs.last;
+      _posts.addAll(querySnapshot.docs);
     }
 
     _isFetchingPosts = false;
@@ -214,6 +264,7 @@ class _FeedScreenState extends State<FeedScreen> {
                       userLocation = address;
                       userLatitude = position.latitude;
                       userLongitude = position.longitude;
+                      visitingStatus.clearUserVisiting();
                     });
                   }
                   Navigator.pop(context);
@@ -222,10 +273,11 @@ class _FeedScreenState extends State<FeedScreen> {
               ListTile(
                 title: Text('Global Content'),
                 onTap: () {
-                   if (mounted) {
-                  setState(() {
-                    selectedOption = 'global';
-                  });}
+                  if (mounted) {
+                    setState(() {
+                      selectedOption = 'global';
+                    });
+                  }
                   Navigator.pop(context);
                 },
               ),
@@ -263,17 +315,28 @@ class _FeedScreenState extends State<FeedScreen> {
                   borderRadius: BorderRadius.circular(15),
                   color: Colors.white,
                 ),
-                padding: EdgeInsets.all(20),
-                child: MapPickerWidget(
-                  onLocationSelected: (LatLng selectedLocation) {
-                     if (mounted) {
-                    setState(() {
-                      selectedOption = 'visitArea';
-                      userLatitude = selectedLocation.latitude;
-                      userLongitude = selectedLocation.longitude;
-                    });}
-                    Navigator.of(context)
-                        .pop(); // Close the dialog after selection
+                padding: EdgeInsets.all(5),
+                child: MapPickerScreen(
+                  onLocationPicked: (LatLng selectedLocation) async {
+                    // Perform asynchronous operations
+                    double latitude = selectedLocation.latitude;
+                    double longitude = selectedLocation.longitude;
+                    String? location = await LocationUtils.getAddressFromLatLng(
+                        latitude, longitude);
+
+                    // Update the state
+                    if (mounted) {
+                      setState(() {
+                        selectedOption = 'visitArea';
+                        userLatitude = latitude;
+                        userLongitude = longitude;
+                        visitingStatus.setUserVisiting(latitude, longitude);
+                        visitedAreaLocation = location;
+                      });
+                    }
+
+                    // Close the dialog after selection
+                    Navigator.of(context).pop();
                   },
                 ),
               ),
@@ -286,7 +349,7 @@ class _FeedScreenState extends State<FeedScreen> {
                   },
                   child: const CircleAvatar(
                     child: Icon(Icons.close),
-                    backgroundColor: Colors.red,
+                    backgroundColor: highlightColor,
                   ),
                 ),
               ),
@@ -366,21 +429,11 @@ class _FeedScreenState extends State<FeedScreen> {
                     height: 24,
                     color: Colors.white,
                   ),
-                  onPressed: () {
-                    showAboutDialog(
-                      context: context,
-                      applicationIcon: SvgPicture.asset(
-                        'assets/logo-with-name-H.svg',
-                        height: 20,
-                      ),
-                      applicationName: 'LocaLink',
-                      applicationVersion: '0.1.0',
-                      children: [
-                        const Text(
-                            'This is a Pre-Alpha version for Internal Testing'),
-                      ],
-                    );
-                  },
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => NotificationsPage(),
+                    ),
+                  ),
                 ),
                 IconButton(
                   icon: SvgPicture.asset(
@@ -416,122 +469,111 @@ class _FeedScreenState extends State<FeedScreen> {
         onRefresh: _refreshFeed,
         child: Column(
           children: [
-            /* Text(
-                "Current locations: Lat: ${_locationService.currentLocation?.latitude}, Long: ${_locationService.currentLocation?.longitude}"), */
-            GestureDetector(
-              onTap: userLocation != null
-                  ? () => _showOptionsPanel(context)
-                  : null,
-              child: Container(
-                margin: const EdgeInsets.all(6.0),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 5.0, vertical: 1.0),
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: highlightColor, // Change to your highlightColor
-                    width: 2.0,
+            AnimatedOpacity(
+              duration: const Duration(milliseconds: 300),
+              opacity: _isVisible ? 1.0 : 0.0,
+              child: GestureDetector(
+                onTap: userLocation != null
+                    ? () => _showOptionsPanel(context)
+                    : null,
+                child: Container(
+                  margin: const EdgeInsets.all(6.0),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 5.0, vertical: 1.0),
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: highlightColor,
+                      width: 2.0,
+                    ),
+                    color: darkBackgroundColor,
+                    borderRadius: BorderRadius.circular(15),
+                    boxShadow: [
+                      BoxShadow(
+                        color: highlightColor.withOpacity(0.01),
+                        spreadRadius: 3,
+                        blurRadius: 3,
+                        offset: Offset(0, 1),
+                      ),
+                    ],
                   ),
-                  color:
-                      darkBackgroundColor, // Change to your darkBackgroundColor
-                  borderRadius: BorderRadius.circular(15),
-                  boxShadow: [
-                    BoxShadow(
-                      color: highlightColor
-                          .withOpacity(0.01), // Change to your highlightColor
-                      spreadRadius: 3,
-                      blurRadius: 3,
-                      offset: Offset(0, 1),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: SvgPicture.asset(
-                        'assets/icons/locamap.svg',
-                        color: highlightColor,
-                        width: 24,
-                        height: 24,
-                      ),
-                      onPressed: () {},
-                    ),
-                    SizedBox(width: 8.0),
-                    Expanded(
-                      child: Text(
-                        selectedOption == 'global'
-                            ? 'Global'
-                            : (userLocation ?? 'Select Area'),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: SvgPicture.asset(
+                          'assets/icons/locamap.svg',
+                          color: highlightColor,
+                          width: 24,
+                          height: 24,
                         ),
-                        overflow: TextOverflow.ellipsis,
+                        onPressed: () {},
                       ),
-                    ),
-                    if (selectedOption != 'global')
-                      const Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        color: highlightColor,
+                      SizedBox(width: 8.0),
+                      Expanded(
+                        child: Text(
+                          selectedOption == 'global'
+                              ? 'Global'
+                              : (selectedOption == 'visitArea' &&
+                                      visitedAreaLocation != null)
+                                  ? visitedAreaLocation!
+                                  : (userLocation ?? 'Select Area'),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                  ],
+                      if (selectedOption != 'global')
+                        const Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          color: highlightColor,
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ),
             Expanded(
               child: FutureBuilder<void>(
-                future:
-                    _fetchPosts(), // This initiates fetching posts when the widget builds
+                future: _fetchPosts(),
                 builder: (context, snapshot) {
-                  // Show loading indicator until the first fetch is completed
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
 
-                  // Once data is fetched, build the list
                   return ListView.builder(
-                    controller:
-                        _scrollController, // Attach the scroll controller
-                    itemCount: _hasMorePosts
-                        ? _posts.length + 1
-                        : _posts
-                            .length, // Add one for the loading indicator if more posts are available
+                    controller: _scrollController,
+                    itemCount:
+                        _hasMorePosts ? _posts.length + 1 : _posts.length,
                     itemBuilder: (context, index) {
                       if (index >= _posts.length) {
-                        // Show loading indicator at the bottom
                         return Center(child: Container());
                       }
 
-                      // Explicitly cast the DocumentSnapshot
                       DocumentSnapshot<Map<String, dynamic>> post =
                           _posts[index]
                               as DocumentSnapshot<Map<String, dynamic>>;
 
                       bool shouldIncludePost = false;
                       if (selectedOption == 'global') {
-                        shouldIncludePost =
-                            true; // Include all posts for global option
+                        shouldIncludePost = true;
                       } else {
-                        // Extract post latitude and longitude
                         double postLatitude =
                             post.data()?['latitude'] as double;
                         double postLongitude =
                             post.data()?['longitude'] as double;
-
-                        // Calculate distance from the user or selected area to the post
                         double distance = calculateDistance(
                           userLatitude,
                           userLongitude,
                           postLatitude,
                           postLongitude,
                         );
-
                         double distanceThreshold =
                             selectedOption == 'visitArea' ? 0.7 : 0.7;
                         shouldIncludePost = distance <= distanceThreshold;
                       }
 
                       if (shouldIncludePost) {
-                        // Use a FutureBuilder to wait for the post type name
                         return FutureBuilder<String>(
                           future: getPostTypeName(post.data()?['postType']),
                           builder: (context, snapshot) {
@@ -541,28 +583,30 @@ class _FeedScreenState extends State<FeedScreen> {
                             } else if (snapshot.hasError) {
                               return Text('Error: ${snapshot.error}');
                             } else if (snapshot.hasData) {
-                              // Now we can check the post type name
                               if (snapshot.data == 'updates') {
-                                // If the post type is 'update', return a TextPostCard
-                                return TextPostCard(snap: post.data()!);
+                                return TextPostCard(
+                                  key: ValueKey(post.id), // Add unique key
+                                  snap: post.data()!,
+                                );
                               } else {
-                                // For all other post types, return a PostCard
-                                return PostCard(snap: post.data()!);
+                                return PostCard(
+                                  key: ValueKey(post.id), // Add unique key
+                                  snap: post.data()!,
+                                );
                               }
                             } else {
-                              // If no data yet, show a placeholder or return an empty container
                               return Container();
                             }
                           },
                         );
                       } else {
-                        return Container(); // Or any other placeholder if a post shouldn't be included
+                        return Container();
                       }
                     },
                   );
                 },
               ),
-            ),
+            )
           ],
         ),
       ),

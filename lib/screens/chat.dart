@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -7,7 +8,7 @@ import 'package:localink_sm/resources/firestore_methods.dart';
 import 'package:localink_sm/utils/colors.dart';
 
 class MessagePage extends StatefulWidget {
-  final model.User user;
+  final model.User? user;
   final String conversationId;
 
   const MessagePage(
@@ -23,25 +24,17 @@ class _MessagePageState extends State<MessagePage> {
   final FireStoreMethods _firestoreMethods = FireStoreMethods();
   final ScrollController _scrollController = ScrollController();
   FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
-  Future<Map<String, dynamic>> _getConversationId() async {
-    String senderId = FirebaseAuth.instance.currentUser!.uid;
-    String receiverId = widget.user.uid;
-    return await _firestoreMethods
-        .getOrCreateConversation([senderId, receiverId]);
-  }
+  String? conversationId;
 
   @override
   void initState() {
     super.initState();
-    // Add a listener to scroll to bottom whenever the messages list updates
     String currentUserId = FirebaseAuth.instance.currentUser!.uid;
-    _firestoreMethods.resetUnreadCount(widget.conversationId, currentUserId);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
-      }
-    });
+    conversationId =
+        widget.conversationId.isEmpty ? null : widget.conversationId;
+    if (conversationId != null) {
+      _firestoreMethods.resetUnreadCount(conversationId!, currentUserId);
+    }
   }
 
   Future<Map<String, dynamic>?> fetchPostDetails(String postId) async {
@@ -51,22 +44,18 @@ class _MessagePageState extends State<MessagePage> {
       if (postSnapshot.exists) {
         Map<String, dynamic>? postData =
             postSnapshot.data() as Map<String, dynamic>?;
-        // Fetch the first media item for simplicity, you can adjust as needed
         QuerySnapshot mediaSnapshot = await _firestore
             .collection('posts/$postId/postMedia')
             .limit(1)
             .get();
         if (mediaSnapshot.docs.isNotEmpty) {
-          // Explicitly cast the data to a Map<String, dynamic>
           var mediaData =
               mediaSnapshot.docs.first.data() as Map<String, dynamic>?;
-          // Now you can safely use the [] operator since mediaData is properly typed
           String? mediaUrl = mediaData?['mediaUrl'] as String?;
           if (mediaUrl != null) {
             postData?['mediaUrl'] = mediaUrl;
           }
         }
-
         return postData;
       }
     } catch (e) {
@@ -81,12 +70,9 @@ class _MessagePageState extends State<MessagePage> {
 
     for (var doc in docs) {
       final messageData = doc.data() as Map<String, dynamic>;
-
-      // Safely obtain the timestamp, handling possible null values
       final timestamp = messageData['timestamp'];
-      final messageTimestamp = timestamp != null
-          ? timestamp as Timestamp
-          : Timestamp.now(); // Fallback to current time if null
+      final messageTimestamp =
+          timestamp != null ? timestamp as Timestamp : Timestamp.now();
 
       final messageDate = messageTimestamp.toDate();
       final justDate =
@@ -94,11 +80,11 @@ class _MessagePageState extends State<MessagePage> {
 
       if (previousMessageDate == null ||
           justDate.isAfter(previousMessageDate)) {
-        processedItems.add(justDate); // Add a DateTime object as a separator
+        processedItems.add(justDate);
         previousMessageDate = justDate;
       }
 
-      processedItems.add(doc); // Add the message document
+      processedItems.add(doc);
     }
 
     return processedItems;
@@ -111,32 +97,67 @@ class _MessagePageState extends State<MessagePage> {
     super.dispose();
   }
 
-  void sendMessage() async {
-    if (_messageController.text.trim().isNotEmpty) {
-      try {
-        String receiverUserId = widget.user
-            .uid; // Placeholder, replace with the actual receiver's user ID
-        String?
-            existingConversationId; // This should be set if there's an existing conversation selected
-
-        // Attempt to send the message. If existingConversationId is null, getOrCreateConversation will handle creating a new one.
-        await _firestoreMethods.sendMessage(
-          conversationId:
-              existingConversationId, // If this is null, a new conversation will be created
-          participantIDs: [
-            FirebaseAuth.instance.currentUser!.uid,
-            receiverUserId
-          ], // Required for creating a new conversation
-          senderId: FirebaseAuth.instance.currentUser!.uid,
-          messageText: _messageController.text.trim(),
-          messageType: 'text', // Indicating that this is a text message
-        );
-        _messageController.clear();
-      } catch (e) {
-        print(e); // Ideally, use a more user-friendly way to show the error
+ void sendMessage() async {
+  if (_messageController.text.trim().isNotEmpty) {
+    try {
+      List<String> participantIDs = [FirebaseAuth.instance.currentUser!.uid];
+      if (widget.user != null) {
+        participantIDs.add(widget.user!.uid);
       }
+
+      // Fetch the sender's user data
+      String currentUserId = FirebaseAuth.instance.currentUser!.uid;
+      DocumentSnapshot senderSnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUserId)
+          .get();
+      var senderData = senderSnapshot.data() as Map<String, dynamic>;
+      String senderName = senderData['username'];
+
+      // Check if the conversationId is empty
+      String? newConversationId =
+          conversationId == null ? null : conversationId;
+
+      // Send the message
+      newConversationId = await _firestoreMethods.sendMessage(
+        conversationId: newConversationId,
+        participantIDs: participantIDs,
+        senderId: FirebaseAuth.instance.currentUser!.uid,
+        messageText: _messageController.text.trim(),
+        messageType: 'text',
+      );
+
+      setState(() {
+        conversationId = newConversationId;
+      });
+
+      _messageController.clear();
+
+      if (widget.user != null) {
+        // Send notification to the recipient
+        HttpsCallable callable = FirebaseFunctions.instance
+            .httpsCallable('sendMessageNotification');
+        await callable.call({
+          'userId': widget.user!.uid, // The ID of the recipient
+          'messageSenderId': FirebaseAuth.instance.currentUser!.uid, // The ID of the sender
+          'messageSenderName': senderName, // The name of the sender
+          'messageText': _messageController.text.trim(), // The text of the message
+        });
+      }
+
+      _firestoreMethods.resetUnreadCount(conversationId!, currentUserId);
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scrollController.hasClients) {
+          _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+        }
+      });
+    } catch (e) {
+      print(e);
     }
   }
+}
+
 
   @override
   Widget build(BuildContext context) {
@@ -144,11 +165,54 @@ class _MessagePageState extends State<MessagePage> {
       appBar: AppBar(
         title: Row(
           children: [
-            CircleAvatar(
-              backgroundImage: NetworkImage(widget.user.photoUrl),
-            ),
+            widget.user != null
+                ? CircleAvatar(
+                    backgroundImage: NetworkImage(widget.user!.photoUrl),
+                  )
+                : FutureBuilder<DocumentSnapshot>(
+                    future: _firestore
+                        .collection('conversations')
+                        .doc(widget.conversationId)
+                        .get(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return CircularProgressIndicator(
+                          strokeWidth: 2.0,
+                        );
+                      }
+                      if (snapshot.hasError || !snapshot.hasData) {
+                        return Icon(Icons.group);
+                      }
+                      Map<String, dynamic> data =
+                          snapshot.data!.data() as Map<String, dynamic>;
+                      return CircleAvatar(
+                        backgroundImage:
+                            NetworkImage(data['groupPhotoUrl'] ?? ''),
+                      );
+                    },
+                  ),
             SizedBox(width: 8),
-            Text(widget.user.username),
+            widget.user != null
+                ? Text(widget.user!.username)
+                : FutureBuilder<DocumentSnapshot>(
+                    future: _firestore
+                        .collection('conversations')
+                        .doc(widget.conversationId)
+                        .get(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return CircularProgressIndicator(
+                          strokeWidth: 2.0,
+                        );
+                      }
+                      if (snapshot.hasError || !snapshot.hasData) {
+                        return Text('Group');
+                      }
+                      Map<String, dynamic> data =
+                          snapshot.data!.data() as Map<String, dynamic>;
+                      return Text(data['title'] ?? 'Group');
+                    },
+                  ),
           ],
         ),
       ),
@@ -157,8 +221,7 @@ class _MessagePageState extends State<MessagePage> {
           Expanded(
             child: widget.conversationId.isEmpty
                 ? Center(
-                    child: Text(
-                        "Start a conversation with ${widget.user.username}"),
+                    child: _buildInitialMessage(),
                   )
                 : StreamBuilder<QuerySnapshot>(
                     stream:
@@ -167,12 +230,23 @@ class _MessagePageState extends State<MessagePage> {
                       if (snapshot.hasError)
                         return Text('Error: ${snapshot.error}');
                       if (snapshot.connectionState == ConnectionState.waiting) {
-                        return CircularProgressIndicator();
+                        return Center(
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.0,
+                          ),
+                        );
                       }
 
                       List<DocumentSnapshot> docs = snapshot.data!.docs;
+                      if (docs.isEmpty) {
+                        return Center(
+                          child: _buildInitialMessage(),
+                        );
+                      }
+
                       List<dynamic> itemsWithSeparators =
-                          _processMessagesForDateSeparators(docs);
+                          _processMessagesForDateSeparators(
+                              docs.reversed.toList());
                       return _buildMessagesList(itemsWithSeparators);
                     },
                   ),
@@ -188,18 +262,20 @@ class _MessagePageState extends State<MessagePage> {
       Map<String, dynamic> messageData = item.data() as Map<String, dynamic>;
       bool isMe =
           messageData['senderID'] == FirebaseAuth.instance.currentUser!.uid;
-      return _buildMessageTile(messageData, isMe);
+      if (messageData['type'] == 'post') {
+        return _buildPostMessageTile(messageData, isMe);
+      } else {
+        return _buildMessageTile(messageData, isMe);
+      }
     } else if (item is DateTime) {
       return _buildDateSeparator(item);
     } else {
-      return SizedBox.shrink(); // This should not happen
+      return SizedBox.shrink();
     }
   }
 
   Widget _buildDateSeparator(DateTime date) {
-    // Format the date as needed. Here's an example:
     String formattedDate = DateFormat('MMM d, yyyy').format(date);
-
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -215,38 +291,61 @@ class _MessagePageState extends State<MessagePage> {
   }
 
   Widget _buildMessageTile(Map<String, dynamic> messageData, bool isMe) {
-    // Check if the message type is 'post'
-    if (messageData['type'] == 'post') {
-      // Handle post type message
-      return _buildPostMessageTile(messageData, isMe);
-    } else {
-      // Handle regular text or media message
-      return Align(
-        alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: isMe ? highlightColor : darkLBackgroundColor,
-            borderRadius: isMe
-                ? const BorderRadius.only(
-                    topLeft: Radius.circular(12),
-                    topRight: Radius.circular(12),
-                    bottomLeft: Radius.circular(12),
-                  )
-                : const BorderRadius.only(
-                    topLeft: Radius.circular(12),
-                    topRight: Radius.circular(12),
-                    bottomRight: Radius.circular(12),
-                  ),
-          ),
-          child: Text(
-            messageData['content'] ?? "Message not available",
-            style: TextStyle(color: isMe ? primaryColor : primaryColor),
-          ),
+    return Align(
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        constraints:
+            BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+        decoration: BoxDecoration(
+          color: isMe ? highlightColorMessages : darkLBackgroundColor,
+          borderRadius: BorderRadius.circular(12),
         ),
-      );
-    }
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (!isMe) // Show sender name only for received messages
+              FutureBuilder<DocumentSnapshot>(
+                future: _firestore
+                    .collection('users')
+                    .doc(messageData['senderID'])
+                    .get(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return Text('Loading...',
+                        style: TextStyle(color: Colors.white));
+                  }
+                  if (snapshot.hasError || !snapshot.hasData) {
+                    return Text('Unknown',
+                        style: TextStyle(color: Colors.white));
+                  }
+                  model.User sender = model.User.fromSnap(snapshot.data!);
+                  return Text(
+                    sender.username,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  );
+                },
+              ),
+            Text(
+              messageData['content'] ?? "Message not available",
+              style: TextStyle(color: Colors.white),
+            ),
+            Align(
+              alignment: Alignment.bottomRight,
+              child: Text(
+                DateFormat('hh:mm a')
+                    .format((messageData['timestamp'] as Timestamp).toDate()),
+                style: TextStyle(color: Colors.white70, fontSize: 10),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildPostMessageTile(Map<String, dynamic> messageData, bool isMe) {
@@ -254,7 +353,9 @@ class _MessagePageState extends State<MessagePage> {
       future: fetchPostDetails(messageData['sharedPostId']),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return CircularProgressIndicator(); // Show loading indicator while fetching post details
+          return CircularProgressIndicator(
+            strokeWidth: 2.0,
+          );
         } else if (snapshot.hasError || !snapshot.hasData) {
           return Text('Error fetching post or post not found');
         } else {
@@ -264,38 +365,35 @@ class _MessagePageState extends State<MessagePage> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width * 0.75),
               decoration: BoxDecoration(
-                color: isMe ? highlightColor : darkLBackgroundColor,
-                borderRadius: isMe
-                    ? const BorderRadius.only(
-                        topLeft: Radius.circular(12),
-                        topRight: Radius.circular(12),
-                        bottomLeft: Radius.circular(12),
-                      )
-                    : const BorderRadius.only(
-                        topLeft: Radius.circular(12),
-                        topRight: Radius.circular(12),
-                        bottomRight: Radius.circular(12),
-                      ),
+                color: isMe ? highlightColorMessages : darkLBackgroundColor,
+                borderRadius: BorderRadius.circular(12),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     "Shared Post:",
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: isMe ? primaryColor : primaryColor,
+                      color: Colors.white,
                     ),
                   ),
                   SizedBox(height: 4),
-                  // Display the post's image
-                  Image.network(postDetails?['mediaUrl'] ?? ''),
+                  if (postDetails?['mediaUrl'] != null)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        postDetails!['mediaUrl'],
+                        fit: BoxFit.cover,
+                      ),
+                    ),
                   SizedBox(height: 4),
-                  // Display the post's caption
                   Text(
                     postDetails?['caption'] ?? 'Caption not available',
-                    style: TextStyle(color: isMe ? primaryColor : primaryColor),
+                    style: TextStyle(color: Colors.white),
                   ),
                 ],
               ),
@@ -306,10 +404,36 @@ class _MessagePageState extends State<MessagePage> {
     );
   }
 
+  Widget _buildInitialMessage() {
+    return const Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(
+          Icons.lock,
+          color: Colors.grey,
+          size: 64,
+        ),
+        SizedBox(height: 16),
+        Text(
+          "Your messages are secured with end-to-end encryption.",
+          style: TextStyle(color: Colors.grey),
+          textAlign: TextAlign.center,
+        ),
+        SizedBox(height: 8),
+        Text(
+          "Start a conversation by sending a message.",
+          style: TextStyle(color: Colors.grey),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
   Expanded _buildMessagesList(List<dynamic> items) {
     return Expanded(
       child: ListView.builder(
-        controller: _scrollController, // Use the ScrollController here
+        controller: _scrollController,
+        reverse: true,
         itemCount: items.length,
         itemBuilder: (context, index) {
           return _buildItem(items[index]);
@@ -318,64 +442,46 @@ class _MessagePageState extends State<MessagePage> {
     );
   }
 
-  Widget _buildImageMessage() {
-    return Container(
-      padding: EdgeInsets.symmetric(vertical: 10),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Container(
-          // Your image widget will go here
-          width: 200,
-          height: 200,
-          decoration: BoxDecoration(
-              // Add image decoration properties
-              ),
-          child: Image.network(
-            'YourImageURLHere',
-            fit: BoxFit.cover,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDocumentTile(String documentName) {
-    return ListTile(
-      leading: Icon(Icons.picture_as_pdf),
-      title: Text(documentName),
-      onTap: () {
-        // Handle document opening
-      },
-    );
-  }
-
   Widget _buildInputArea() {
-    return Row(
-      children: <Widget>[
-        IconButton(
-          icon: Icon(Icons.photo_camera),
-          onPressed: () {
-            // Handle camera action
-          },
-        ),
-        IconButton(
-          icon: Icon(Icons.attach_file),
-          onPressed: () {
-            // Handle attachment action
-          },
-        ),
-        Expanded(
-          child: TextField(
-            controller: _messageController,
-            decoration: InputDecoration(hintText: 'Message...'),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
+      child: Row(
+        children: <Widget>[
+          IconButton(
+            icon: Icon(Icons.photo_camera),
+            onPressed: () {
+              // Handle camera action
+            },
           ),
-        ),
-        IconButton(
-          icon: Icon(Icons.send),
-          onPressed:
-              sendMessage, // Call the sendMessage method when the send button is pressed
-        ),
-      ],
+          IconButton(
+            icon: Icon(Icons.attach_file),
+            onPressed: () {
+              // Handle attachment action
+            },
+          ),
+          Expanded(
+            child: TextField(
+              controller: _messageController,
+              decoration: InputDecoration(
+                hintText: 'Message...',
+                filled: true,
+                fillColor: Colors.grey[800],
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              ),
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+          IconButton(
+            icon: Icon(Icons.send),
+            onPressed: sendMessage,
+          ),
+        ],
+      ),
     );
   }
 }

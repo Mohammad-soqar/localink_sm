@@ -7,7 +7,8 @@ import 'package:mapbox_gl/mapbox_gl.dart';
 class MapPickerScreen extends StatefulWidget {
   final Function(LatLng) onLocationPicked;
 
-  MapPickerScreen({required this.onLocationPicked});
+
+  const MapPickerScreen({Key? key, required this.onLocationPicked}) : super(key: key);
 
   @override
   _MapPickerScreenState createState() => _MapPickerScreenState();
@@ -24,23 +25,23 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
   void initState() {
     super.initState();
     _setInitialLocation();
-    _fetchRestrictedAreas();
+  //  _fetchRestrictedAreas();
   }
 
   void _setInitialLocation() {
     // Set the initial location here
   }
 
-  Future<void> _fetchRestrictedAreas() async {
+/*   Future<void> _fetchRestrictedAreas() async {
     RestrictedAreasService service = RestrictedAreasService();
     List<LatLng> areas = await service.fetchRestrictedAreas();
     setState(() {
       _restrictedAreas = areas;
     });
     _displayRestrictedAreas();
-  }
+  } */
 
-  Future<void> _displayRestrictedAreas() async {
+/*   Future<void> _displayRestrictedAreas() async {
     final controller = await _controllerCompleter.future;
     for (var area in _restrictedAreas) {
       controller.addCircle(
@@ -52,13 +53,13 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
         ),
       );
     }
-  }
+  } */
 
   Future<void> _onMapCreated(MapboxMapController controller) async {
     _controller = controller;
     _controllerCompleter.complete(controller);
     await _moveCameraToCurrentLocation();
-    _displayRestrictedAreas();
+  //  _displayRestrictedAreas();
   }
 
   Future<void> _moveCameraToCurrentLocation() async {
@@ -144,8 +145,8 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
         styleString: "mapbox://styles/mapbox/dark-v11",
         initialCameraPosition: CameraPosition(
           target: _pickedLocation ??
-              LatLng(41.0125944, 28.54218839999999), // Default location if null
-          zoom: 14.0,
+              LatLng(40.99437101906267, 28.99925336148795), // Default location if null
+          zoom: 10.0,
         ),
         onMapClick: _onMapTap,
       ),

@@ -23,7 +23,8 @@ class TextPostCard extends StatefulWidget {
   State<TextPostCard> createState() => _TextPostCardState();
 }
 
-class _TextPostCardState extends State<TextPostCard> {
+class _TextPostCardState extends State<TextPostCard>
+    with AutomaticKeepAliveClientMixin {
   int commentLen = 0;
   bool isLikeAnimating = false;
   model.User? userData;
@@ -32,6 +33,7 @@ class _TextPostCardState extends State<TextPostCard> {
   final TextEditingController _messageController = TextEditingController();
   final FireStoreMethods _firestoreMethods = FireStoreMethods();
   String? postId;
+  bool isPostedByVisitor = false;
 
   @override
   void initState() {
@@ -42,6 +44,17 @@ class _TextPostCardState extends State<TextPostCard> {
       fetchReactions(postId!);
     }
     fetchCommentLen();
+    fetchIsVisitor(widget.snap);
+  }
+
+  fetchIsVisitor(Map<String, dynamic> postMap) async {
+    try {
+      bool isVisiting = postMap['isVisitor'];
+
+      isPostedByVisitor = isVisiting;
+    } catch (err) {
+      print('Error fetching user data: $err');
+    }
   }
 
   fetchUserData() async {
@@ -50,9 +63,9 @@ class _TextPostCardState extends State<TextPostCard> {
       DocumentSnapshot userSnapshot =
           await FirebaseFirestore.instance.collection('users').doc(uid).get();
       userData = model.User.fromSnap(userSnapshot);
-       if (mounted) {
-      setState(() {});
-    }
+      if (mounted) {
+        setState(() {});
+      }
     } catch (err) {
       print('Error fetching user data: $err');
     }
@@ -66,9 +79,9 @@ class _TextPostCardState extends State<TextPostCard> {
           .collection('comments')
           .get();
       commentLen = snap.docs.length;
-       if (mounted) {
-      setState(() {});
-    }
+      if (mounted) {
+        setState(() {});
+      }
     } catch (err) {
       print('Error fetching comment length: $err');
     }
@@ -220,8 +233,7 @@ class _TextPostCardState extends State<TextPostCard> {
                               builder: (context, followingSnapshot) {
                                 if (followingSnapshot.connectionState ==
                                     ConnectionState.waiting) {
-                                  return Center(
-                                      child: Container());
+                                  return Center(child: Container());
                                 }
                                 if (!followingSnapshot.hasData ||
                                     followingSnapshot.data!.data() == null) {
@@ -293,39 +305,7 @@ class _TextPostCardState extends State<TextPostCard> {
                             Navigator.of(context).pop();
                           },
                         ),
-                      Divider(),
-                      ListTile(
-                        leading: Icon(Icons.add_circle_outline),
-                        title: Text('Add to story'),
-                        onTap: () {
-                          // Add to story functionality
-                          Navigator.of(context).pop();
-                        },
-                      ),
-                      ListTile(
-                        leading: Icon(Icons.file_download),
-                        title: Text('Download'),
-                        onTap: () {
-                          // Download functionality
-                          Navigator.of(context).pop();
-                        },
-                      ),
-                      ListTile(
-                        leading: Icon(Icons.content_copy),
-                        title: Text('Copy link'),
-                        onTap: () {
-                          // Copy link functionality
-                          Navigator.of(context).pop();
-                        },
-                      ),
-                      ListTile(
-                        leading: Icon(Icons.message),
-                        title: Text('WhatsApp'),
-                        onTap: () {
-                          // Share to WhatsApp functionality
-                          Navigator.of(context).pop();
-                        },
-                      ),
+
                       // Add more items here
                     ],
                   ),
@@ -398,7 +378,13 @@ class _TextPostCardState extends State<TextPostCard> {
                         leading: CircleAvatar(
                           backgroundImage: NetworkImage(userData!.photoUrl),
                         ),
-                        title: Text(userData!.username),
+                        title: Row(
+                          children: [
+                            Text(userData!.username),
+                            const SizedBox(width: 4),
+                            if (isPostedByVisitor) _buildBadge(),
+                          ],
+                        ),
                         subtitle: Row(
                           children: [
                             SvgPicture.asset(
@@ -465,7 +451,6 @@ class _TextPostCardState extends State<TextPostCard> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                 
                   SizedBox(
                     height: 8,
                   ),
@@ -485,39 +470,49 @@ class _TextPostCardState extends State<TextPostCard> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                LikeAnimation(
-                  isAnimating: reactions?.contains(user?.uid) ?? false,
-                  smallLike: true,
-                  child: IconButton(
-                    icon: reactions!.contains(user?.uid)
-                        ? SvgPicture.asset(
-                            'assets/icons/like.svg',
-                            height: 24,
-                            color: highlightColor,
-                          )
-                        : SvgPicture.asset(
-                            'assets/icons/like.svg',
-                            height: 24,
-                            color: Colors.white,
-                          ),
-                    onPressed: () async {
-                      setState(() {
-                        isLikeAnimating = true;
-                      });
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: LikeAnimation(
+                    isAnimating: reactions.contains(user?.uid),
+                    smallLike: true,
+                    child: GestureDetector(
+                      onTap: () async {
+                        setState(() {
+                          isLikeAnimating = true;
+                        });
 
-                      await FireStoreMethods().likePost(
-                        user!.uid,
-                        widget.snap['id'],
-                        widget.snap['uid'],
-                        widget.snap['hashtags'].cast<String>(),
-                      );
+                        await FireStoreMethods().likePost(
+                          user!.uid,
+                          widget.snap['id'],
+                          widget.snap['uid'],
+                          widget.snap['hashtags'].cast<String>(),
+                        );
 
-                      fetchReactions(widget.snap['id']);
+                        await fetchReactions(widget.snap['id']);
 
-                      setState(() {
-                        isLikeAnimating = false;
-                      });
-                    },
+                        // Update likes count in the UI
+                        DocumentSnapshot postDoc = await FirebaseFirestore
+                            .instance
+                            .collection('posts')
+                            .doc(widget.snap['id'])
+                            .get();
+                        setState(() {
+                          // likesCount = postDoc['likesCount'] ?? 0;
+                          isLikeAnimating = false;
+                        });
+                      },
+                      child: reactions.contains(user?.uid)
+                          ? SvgPicture.asset(
+                              'assets/icons/like.svg',
+                              height: 24,
+                              color: highlightColor,
+                            )
+                          : SvgPicture.asset(
+                              'assets/icons/like.svg',
+                              height: 24,
+                              color: Colors.white,
+                            ),
+                    ),
                   ),
                 ),
 
@@ -557,13 +552,13 @@ class _TextPostCardState extends State<TextPostCard> {
                       color: Colors.white,
                     ),
                     onPressed: () async {
-                     /*  await FireStoreMethods().savePost(
+                      await FireStoreMethods().savePost(
                         user!.uid,
                         widget.snap['id'],
                         widget.snap['uid'],
                         widget.snap['caption'],
                         widget.snap['hashtags'].cast<String>(),
-                      ); */
+                      );
                     },
                   ),
                 ))
@@ -575,4 +570,25 @@ class _TextPostCardState extends State<TextPostCard> {
       ),
     );
   }
+
+  Widget _buildBadge() {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: highlightColor2,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        'Visitor',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  @override
+  bool get wantKeepAlive => true;
 }

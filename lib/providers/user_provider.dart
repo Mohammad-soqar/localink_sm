@@ -8,10 +8,10 @@ import 'package:localink_sm/resources/auth_methods.dart';
 class UserProvider with ChangeNotifier {
   User? _user; // This now clearly refers to your custom User model
   final AuthMethods _authMethods = AuthMethods();
-  final _db = FirebaseDatabase.instance.reference();
 final databaseReference = FirebaseDatabase.instanceFor(
   app: Firebase.app(),
   databaseURL: 'https://localink-778c5-default-rtdb.europe-west1.firebasedatabase.app/', // Replace with your Realtime Database URL
+// ignore: deprecated_member_use
 ).reference();
 
 
@@ -27,6 +27,7 @@ final databaseReference = FirebaseDatabase.instanceFor(
       print("Error refreshing user: $e");
     }
   }
+
 
  void setUserOnline() {
   firebase_auth.User? firebaseUser = firebase_auth.FirebaseAuth.instance.currentUser;

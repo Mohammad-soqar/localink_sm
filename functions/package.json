@@ -16,7 +16,8 @@
   "dependencies": {
     "@google-cloud/language": "^6.4.0",
     "@google-cloud/vision": "^4.3.0",
-    "firebase-admin": "^12.1.0",
+    "cloudinary": "^2.2.0",
+    "firebase-admin": "^12.2.0",
     "firebase-functions": "^5.0.0"
   },
   "devDependencies": {

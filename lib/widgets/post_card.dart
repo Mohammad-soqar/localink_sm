@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -23,10 +25,13 @@ class PostCard extends StatefulWidget {
   State<PostCard> createState() => _PostCardState();
 }
 
-class _PostCardState extends State<PostCard> {
-  late Future<List<String>> _mediaUrlsFuture; // Future for post media URLs
+class _PostCardState extends State<PostCard>
+    with AutomaticKeepAliveClientMixin {
+  late Future<List<String>> _mediaUrlsFuture;
   int commentLen = 0;
   bool isLikeAnimating = false;
+  bool _isLoading = false;
+  int likesCount = 0;
   model.User? userData;
   List<String> reactions = [];
   VideoPlayerController? _videoPlayerController;
@@ -34,9 +39,12 @@ class _PostCardState extends State<PostCard> {
   late Stream<List<String>> followingListStream;
   final TextEditingController _messageController = TextEditingController();
   final FireStoreMethods _firestoreMethods = FireStoreMethods();
-
+  bool isPostedByVisitor = false;
   String? _postType;
   String? postId;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -44,6 +52,7 @@ class _PostCardState extends State<PostCard> {
     _fetchPostType();
     fetchUserData();
     followingListStream = _getUserFollowingList();
+    likesCount = widget.snap['likesCount'] ?? 0;
 
     postId = widget.snap['id'];
     if (widget.snap['mediaType'] == 'video') {
@@ -79,9 +88,9 @@ class _PostCardState extends State<PostCard> {
       DocumentSnapshot userSnapshot =
           await FirebaseFirestore.instance.collection('users').doc(uid).get();
       userData = model.User.fromSnap(userSnapshot);
-       if (mounted) {
-      setState(() {});
-    }
+      if (mounted) {
+        setState(() {});
+      }
     } catch (err) {
       print('Error fetching user data: $err');
     }
@@ -98,6 +107,12 @@ class _PostCardState extends State<PostCard> {
       List<String> mediaUrls =
           mediaSnap.docs.map((doc) => doc['mediaUrl'] as String).toList();
 
+      bool isVisiting = postMap['isVisitor'];
+
+      isPostedByVisitor = isVisiting;
+
+   
+
       return mediaUrls;
     } catch (err) {
       print('Error fetching post media: $err');
@@ -113,15 +128,15 @@ class _PostCardState extends State<PostCard> {
           .collection('comments')
           .get();
       commentLen = snap.docs.length;
-       if (mounted) {
-      setState(() {});
-    }
+      if (mounted) {
+        setState(() {});
+      }
     } catch (err) {
       print('Error fetching comment length: $err');
     }
   }
 
-  Future<List<String>> fetchReactions(String postId) async {
+  Future<void> fetchReactions(String postId) async {
     try {
       QuerySnapshot<Map<String, dynamic>> reactionSnapshot =
           await FirebaseFirestore.instance
@@ -130,12 +145,16 @@ class _PostCardState extends State<PostCard> {
               .collection('reactions')
               .get();
 
-      List<String> reactions =
+      List<String> fetchedReactions =
           reactionSnapshot.docs.map((doc) => doc.id).toList();
-      return reactions;
+
+      if (mounted) {
+        setState(() {
+          reactions = fetchedReactions;
+        });
+      }
     } catch (error) {
       print("Error fetching reactions: $error");
-      return [];
     }
   }
 
@@ -155,7 +174,7 @@ class _PostCardState extends State<PostCard> {
         spans.add(
           TextSpan(
             text: caption.substring(currentIndex, startIndex),
-            style: TextStyle(
+            style: const TextStyle(
               color: primaryColor,
               fontSize: 12,
             ),
@@ -167,7 +186,7 @@ class _PostCardState extends State<PostCard> {
       spans.add(
         TextSpan(
           text: caption.substring(startIndex, endIndex),
-          style: TextStyle(
+          style: const TextStyle(
             color: highlightColor, // Color for hashtags
             fontSize: 12,
             decoration: TextDecoration.underline, // Underline for hashtags
@@ -194,7 +213,7 @@ class _PostCardState extends State<PostCard> {
     return spans;
   }
 
-  void _initializeVideoPlayer(String mediaUrl) {
+/*   void _initializeVideoPlayer(String mediaUrl) {
     Uri mediaUri = Uri.parse(mediaUrl);
     _videoPlayerController?.dispose();
     _videoPlayerController = VideoPlayerController.networkUrl(mediaUri);
@@ -206,7 +225,7 @@ class _PostCardState extends State<PostCard> {
     }).catchError((error) {
       print("Error initializing VideoPlayerController: $error");
     });
-  }
+  } */
 
   Widget _buildImage(String mediaUrl) {
     return Container(
@@ -224,7 +243,7 @@ class _PostCardState extends State<PostCard> {
     );
   }
 
-  Widget _buildVideoPlayer(String mediaUrl) {
+/*   Widget _buildVideoPlayer(String mediaUrl) {
     double videoHeight =
         MediaQuery.of(context).size.height * 0.45; // Derived video height
 
@@ -255,7 +274,7 @@ class _PostCardState extends State<PostCard> {
               color: Colors.black, // Placeholder color
             ),
     );
-  }
+  } */
 
   Stream<List<String>> _getUserFollowingList() async* {
     String userId = FirebaseAuth.instance.currentUser!.uid;
@@ -308,7 +327,7 @@ class _PostCardState extends State<PostCard> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Padding(
+                      const Padding(
                         padding: EdgeInsets.symmetric(vertical: 8.0),
                         child: Text(
                           'Share with...',
@@ -334,7 +353,7 @@ class _PostCardState extends State<PostCard> {
                                 }
                                 if (!followingSnapshot.hasData ||
                                     followingSnapshot.data!.data() == null) {
-                                  return Container(); // Empty container in case of no data
+                                  return Container();
                                 }
                                 var followingUserData = followingSnapshot.data!
                                     .data() as Map<String, dynamic>;
@@ -396,45 +415,13 @@ class _PostCardState extends State<PostCard> {
                       if (selectedUserId !=
                           null) // Send button shows if a user is selected
                         ElevatedButton(
-                          child: Text('Send'),
+                          child: const Text('Send'),
                           onPressed: () {
                             sendPostMessage(selectedUserId!, postId!);
                             Navigator.of(context).pop();
                           },
                         ),
-                      Divider(),
-                      ListTile(
-                        leading: Icon(Icons.add_circle_outline),
-                        title: Text('Add to story'),
-                        onTap: () {
-                          // Add to story functionality
-                          Navigator.of(context).pop();
-                        },
-                      ),
-                      ListTile(
-                        leading: Icon(Icons.file_download),
-                        title: Text('Download'),
-                        onTap: () {
-                          // Download functionality
-                          Navigator.of(context).pop();
-                        },
-                      ),
-                      ListTile(
-                        leading: Icon(Icons.content_copy),
-                        title: Text('Copy link'),
-                        onTap: () {
-                          // Copy link functionality
-                          Navigator.of(context).pop();
-                        },
-                      ),
-                      ListTile(
-                        leading: Icon(Icons.message),
-                        title: Text('WhatsApp'),
-                        onTap: () {
-                          // Share to WhatsApp functionality
-                          Navigator.of(context).pop();
-                        },
-                      ),
+                     
                       // Add more items here
                     ],
                   ),
@@ -449,28 +436,23 @@ class _PostCardState extends State<PostCard> {
 
   void sendPostMessage(String userId, String postId) async {
     try {
-      String receiverUserId =
-          userId; // Placeholder, replace with the actual receiver's user ID
-      String?
-          existingConversationId; // This should be set if there's an existing conversation selected
+      String receiverUserId = userId;
+      String? existingConversationId;
 
-      // Attempt to send the message. If existingConversationId is null, getOrCreateConversation will handle creating a new one.
       await _firestoreMethods.sendMessage(
-        conversationId:
-            existingConversationId, // If this is null, a new conversation will be created
+        conversationId: existingConversationId,
         participantIDs: [
           FirebaseAuth.instance.currentUser!.uid,
           receiverUserId
-        ], // Required for creating a new conversation
+        ],
         senderId: FirebaseAuth.instance.currentUser!.uid,
-
         messageText: _messageController.text.trim(),
-        messageType: 'post', // Indicating that this is a text message
+        messageType: 'post',
         sharedPostId: postId,
       );
       _messageController.clear();
     } catch (e) {
-      print(e); // Ideally, use a more user-friendly way to show the error
+      print(e);
     }
   }
 
@@ -484,16 +466,14 @@ class _PostCardState extends State<PostCard> {
         vertical: 10,
       ),
       child: Container(
-        padding: EdgeInsets.symmetric(vertical: 3.0),
-        margin: EdgeInsets.symmetric(vertical: 2.0),
-        decoration: BoxDecoration(
+        padding: const EdgeInsets.symmetric(vertical: 3.0),
+        margin: const EdgeInsets.symmetric(vertical: 2.0),
+        decoration: const BoxDecoration(
           color: darkBackgroundColor,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // User information
-
             if (userData != null)
               Container(
                 padding: const EdgeInsets.symmetric(
@@ -507,22 +487,33 @@ class _PostCardState extends State<PostCard> {
                         leading: CircleAvatar(
                           backgroundImage: NetworkImage(userData!.photoUrl),
                         ),
-                        title: Text(userData!.username),
-                        subtitle: Row(
+                        title: Row(
                           children: [
-                            SvgPicture.asset(
-                              'assets/icons/locamap.svg',
-                              height: 13,
-                              color: highlightColor,
-                            ),
-                            SizedBox(
-                              width: 4,
-                            ),
-                            Text(
-                              widget.snap['locationName'],
-                              style: TextStyle(
-                                fontSize: 12,
-                              ),
+                            Text(userData!.username),
+                            const SizedBox(width: 4),
+                            if(isPostedByVisitor)
+                            _buildBadge(),
+                            
+                          ],
+                        ),
+                        subtitle: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                SvgPicture.asset(
+                                  'assets/icons/locamap.svg',
+                                  height: 13,
+                                  color: highlightColor,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  widget.snap['locationName'],
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -561,7 +552,7 @@ class _PostCardState extends State<PostCard> {
                                   ),
                                 ));
                       },
-                      icon: Icon(Icons.more_vert),
+                      icon: const Icon(Icons.more_vert),
                     ),
                   ],
                 ),
@@ -574,7 +565,7 @@ class _PostCardState extends State<PostCard> {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return Container(); // No loading indicator
                 } else if (snapshot.hasError) {
-                  return Text('Error fetching post media');
+                  return const Text('Error fetching post media');
                 } else if (_postType == null) {
                   return Container(); // No loading indicator while fetching post type
                 } else {
@@ -582,7 +573,7 @@ class _PostCardState extends State<PostCard> {
                   return Column(
                     children: mediaUrls.map((mediaUrl) {
                       return _postType == 'videos'
-                          ? _buildVideoPlayer(mediaUrl)
+                          ? Container() /* _buildVideoPlayer(mediaUrl) */
                           : _buildImage(mediaUrl);
                     }).toList(),
                   );
@@ -593,39 +584,49 @@ class _PostCardState extends State<PostCard> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                LikeAnimation(
-                  isAnimating: reactions?.contains(user?.uid) ?? false,
-                  smallLike: true,
-                  child: IconButton(
-                    icon: reactions!.contains(user?.uid)
-                        ? SvgPicture.asset(
-                            'assets/icons/like.svg',
-                            height: 24,
-                            color: highlightColor,
-                          )
-                        : SvgPicture.asset(
-                            'assets/icons/like.svg',
-                            height: 24,
-                            color: Colors.white,
-                          ),
-                    onPressed: () async {
-                      setState(() {
-                        isLikeAnimating = true;
-                      });
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: LikeAnimation(
+                    isAnimating: reactions.contains(user?.uid),
+                    smallLike: true,
+                    child: GestureDetector(
+                      onTap: () async {
+                        setState(() {
+                          isLikeAnimating = true;
+                        });
 
-                      await FireStoreMethods().likePost(
-                        user!.uid,
-                        widget.snap['id'],
-                        widget.snap['uid'],
-                        widget.snap['hashtags'].cast<String>(),
-                      );
+                        await FireStoreMethods().likePost(
+                          user!.uid,
+                          widget.snap['id'],
+                          widget.snap['uid'],
+                          widget.snap['hashtags'].cast<String>(),
+                        );
 
-                      fetchReactions(widget.snap['id']);
+                        await fetchReactions(widget.snap['id']);
 
-                      setState(() {
-                        isLikeAnimating = false;
-                      });
-                    },
+                        // Update likes count in the UI
+                        DocumentSnapshot postDoc = await FirebaseFirestore
+                            .instance
+                            .collection('posts')
+                            .doc(widget.snap['id'])
+                            .get();
+                        setState(() {
+                          likesCount = postDoc['likesCount'] ?? 0;
+                          isLikeAnimating = false;
+                        });
+                      },
+                      child: reactions.contains(user?.uid)
+                          ? SvgPicture.asset(
+                              'assets/icons/like.svg',
+                              height: 24,
+                              color: highlightColor,
+                            )
+                          : SvgPicture.asset(
+                              'assets/icons/like.svg',
+                              height: 24,
+                              color: Colors.white,
+                            ),
+                    ),
                   ),
                 ),
 
@@ -677,7 +678,15 @@ class _PostCardState extends State<PostCard> {
                 ))
               ],
             ),
-
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8.0, 0, 8.0, 0),
+              child: Text(
+                '$likesCount likes',
+                style: const TextStyle(
+                  color: Colors.white,
+                ),
+              ),
+            ),
             // Like, Comment, Share buttons
             Container(
               width: double.infinity,
@@ -712,6 +721,24 @@ class _PostCardState extends State<PostCard> {
 
             // Display comment length
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBadge() {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: highlightColor2,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        'Visitor',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
         ),
       ),
     );

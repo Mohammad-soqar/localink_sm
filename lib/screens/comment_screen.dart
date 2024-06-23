@@ -29,8 +29,8 @@ class _CommentsScreenState extends State<CommentsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final model.User? user = Provider.of<UserProvider>(context).getUser;
-
+    final model.User? user =
+        Provider.of<UserProvider>(context, listen: false).getUser;
     return Scaffold(
       appBar: AppBar(
         backgroundColor: darkBackgroundColor,
@@ -88,13 +88,12 @@ class _CommentsScreenState extends State<CommentsScreen> {
               InkWell(
                 onTap: () async {
                   await FireStoreMethods().postComment(
-                      widget.snap.toString(),
-                      _commentController.text,
-                      user.uid,
-                      user.username,
-                      user.photoUrl,
-                      
-                      );
+                    widget.snap.toString(),
+                    _commentController.text,
+                    user.uid,
+                    user.username,
+                    user.photoUrl,
+                  );
                   setState(() {
                     _commentController.text = "";
                   });

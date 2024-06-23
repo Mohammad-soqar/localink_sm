@@ -1,10 +1,11 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
-import 'package:localink_sm/models/user.dart' as model;
 import 'package:localink_sm/utils/colors.dart';
 import 'package:localink_sm/utils/global_variables.dart';
 
@@ -47,7 +48,6 @@ class _WebScreenLayoutState extends State<WebScreenLayout> {
 
   @override
   void dispose() {
-    // TODO: implement dispose
     super.dispose();
     pageController.dispose();
   }
@@ -66,10 +66,10 @@ class _WebScreenLayoutState extends State<WebScreenLayout> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: PageView(
-        children: homeScreenItems,
         physics: const NeverScrollableScrollPhysics(),
         controller: pageController,
         onPageChanged: onPageChanged,
+        children: homeScreenItems,
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -128,7 +128,7 @@ class _WebScreenLayoutState extends State<WebScreenLayout> {
                         child: Container(), // Placeholder is an empty container
                       );
                     } else if (snapshot.hasError) {
-                      return Icon(Icons.error, color: Colors.red);
+                      return const Icon(Icons.error, color: Colors.red);
                     } else {
                       return CircleAvatar(
                         backgroundImage: CachedNetworkImageProvider(

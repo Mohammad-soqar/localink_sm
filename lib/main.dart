@@ -1,20 +1,16 @@
-import 'dart:math';
 import 'dart:typed_data';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:localink_sm/models/report.dart';
 import 'package:localink_sm/providers/user_provider.dart';
 import 'package:localink_sm/resources/storage_methods.dart';
 import 'package:localink_sm/screens/login_screen.dart';
-import 'package:localink_sm/screens/signup_screen.dart';
+import 'package:localink_sm/services/visiting_status.dart';
 import 'package:localink_sm/utils/service_locator.dart';
-import 'package:mapbox_gl/mapbox_gl.dart';
 import 'package:provider/provider.dart';
-import 'package:sensors_plus/sensors_plus.dart';
 import 'package:uuid/uuid.dart';
 import 'firebase_options.dart';
 import 'package:localink_sm/responsive/mobile_screen_layout.dart';
@@ -22,18 +18,26 @@ import 'package:localink_sm/responsive/responsive_layout_screen.dart';
 import 'package:localink_sm/responsive/web_screen_layout.dart';
 import 'package:localink_sm/utils/colors.dart';
 
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
   setupLocator();  // Set up the location service
 
   runApp(const MyApp());
 }
 
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+  print('Handling a background message: ${message.messageId}');
+}
+
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key});
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -48,13 +52,15 @@ class MyApp extends StatelessWidget {
         title: 'LocaLink',
         theme: ThemeData.dark()
             .copyWith(scaffoldBackgroundColor: darkBackgroundColor),
-        home: Home(),
+        home: const Home(),
       ),
     );
   }
 }
 
 class Home extends StatefulWidget {
+  const Home({super.key});
+
   @override
   // ignore: library_private_types_in_public_api
   _HomeState createState() => _HomeState();
@@ -64,9 +70,9 @@ class _HomeState extends State<Home> with WidgetsBindingObserver{
   double shakeThresholdGravity = 16.7;
   int shakeSlopTimeMS = 3500;
   int shakeCountResetTime = 3000;
-  final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _descriptionController = TextEditingController();
   Uint8List? referencePhoto;
+    final VisitingStatus visitingStatus = VisitingStatus();
+
 
   int mShakeTimestamp = DateTime.now().millisecondsSinceEpoch;
   int shakeCount = 0;

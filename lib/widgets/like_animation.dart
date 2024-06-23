@@ -27,7 +27,6 @@ class _LikeAnimationState extends State<LikeAnimation>
 
   @override
   void initState() {
-    // TODO: implement initState
     super.initState();
     controller = AnimationController(
       vsync: this,
@@ -47,14 +46,12 @@ class _LikeAnimationState extends State<LikeAnimation>
     }
   }
 
-  startAnimation() async {
+  Future<void> startAnimation() async {
     if (widget.isAnimating || widget.smallLike) {
       await controller.forward();
       await controller.reverse();
       await Future.delayed(
-        const Duration(
-          milliseconds: 200,
-        ),
+        const Duration(milliseconds: 100),
       );
 
       if (widget.onEnd != null) {
@@ -65,8 +62,8 @@ class _LikeAnimationState extends State<LikeAnimation>
 
   @override
   void dispose() {
-    super.dispose();
     controller.dispose();
+    super.dispose();
   }
 
   @override
