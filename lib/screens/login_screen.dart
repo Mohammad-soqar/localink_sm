@@ -32,7 +32,8 @@ class _LoginScreenState extends State<LoginScreen> {
     _emailController.dispose();
     _passwordController.dispose();
   }
- Future<void> saveDeviceToken(String userId) async {
+
+  Future<void> saveDeviceToken(String userId) async {
     FirebaseMessaging messaging = FirebaseMessaging.instance;
     String? token = await messaging.getToken();
     print(token);
@@ -57,7 +58,6 @@ class _LoginScreenState extends State<LoginScreen> {
       });
     }
   }
-
 
   void loginUser() async {
     setState(() {
@@ -93,7 +93,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  void navigatToSignUp() {
+  void navigateToSignUp() {
     Navigator.of(context)
         .push(MaterialPageRoute(builder: (context) => const SignupScreen()));
   }
@@ -103,80 +103,80 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       body: SafeArea(
         child: Container(
-          padding: EdgeInsets.symmetric(horizontal: 32),
+          padding: const EdgeInsets.symmetric(horizontal: 32),
           width: double.infinity,
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
-            //svg image
-            Flexible(child: Container(), flex: 2),
-            SvgPicture.asset('assets/logo-with-name-H.svg', height: 200),
-            const SizedBox(height: 24),
-            //email
-            TextFieldInput(
-                textEditingController: _emailController,
-                hintText: 'Enter Your Email',
-                textInputType: TextInputType.emailAddress),
-            const SizedBox(height: 24),
-            //password
-            TextFieldInput(
-                textEditingController: _passwordController,
-                isPass: true,
-                hintText: 'Enter Your Password',
-                textInputType: TextInputType.text),
-            const SizedBox(height: 24),
-
-            //button login
-            InkWell(
-              onTap: loginUser,
-              child: Container(
-                child: _isLoading
-                    ? const Center(
-                        child: CircularProgressIndicator(
-                          color: primaryColor,
-                        ),
-                      )
-                    : const Text('Log in'),
-                width: double.infinity,
-                alignment: Alignment.center,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: const ShapeDecoration(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.all(
-                        Radius.circular(4),
-                      ),
-                    ),
-                    color: highlightColor),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Flexible(child: Container(), flex: 2),
-            //transition to signUp
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Container(
-                  child: const Text("Don't have an account?"),
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 8,
+                const SizedBox(height: 64),
+                SvgPicture.asset(
+                  'assets/logo-with-name-H.svg',
+                  height: 200,
+                ),
+                const SizedBox(height: 64),
+                TextFieldInput(
+                  textEditingController: _emailController,
+                  hintText: 'Enter Your Email',
+                  textInputType: TextInputType.emailAddress,
+                ),
+                const SizedBox(height: 24),
+                TextFieldInput(
+                  textEditingController: _passwordController,
+                  isPass: true,
+                  hintText: 'Enter Your Password',
+                  textInputType: TextInputType.text,
+                ),
+                const SizedBox(height: 24),
+                InkWell(
+                  onTap: loginUser,
+                  child: Container(
+                    child: _isLoading
+                        ? const Center(
+                            child: CircularProgressIndicator(
+                              color: primaryColor,
+                            ),
+                          )
+                        : const Text(
+                            'Log in',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                            ),
+                          ),
+                    width: double.infinity,
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      color: highlightColor,
+                    ),
                   ),
                 ),
-                GestureDetector(
-                  onTap: navigatToSignUp,
-                  child: Container(
-                    child: const Text(
-                      "Sign Up",
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      "Don't have an account?",
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                    GestureDetector(
+                      onTap: navigateToSignUp,
+                      child: const Text(
+                        " Sign Up",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: highlightColor,
+                        ),
                       ),
                     ),
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 25,
-                    ),
-                  ),
+                  ],
                 ),
+                const SizedBox(height: 24),
               ],
             ),
-          ]),
+          ),
         ),
       ),
     );

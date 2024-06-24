@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:localink_sm/models/user.dart' as model;
+import 'package:localink_sm/screens/AttendeesPage.dart';
 import 'package:localink_sm/screens/deleted_events.dart';
 import 'package:localink_sm/utils/utils.dart';
 import 'package:localink_sm/widgets/event_card.dart';
@@ -55,32 +56,45 @@ class _MyEventsPageState extends State<MyEventsPage> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Events'),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.delete),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => DeletedEventsPage()),
-              );
-            },
-          ),
-        ],
-      ),
-      body: isLoading
-          ? Center(child: CircularProgressIndicator())
-          : events.isEmpty
-              ? Center(child: Text('No events found'))
-              : ListView.builder(
-                  itemCount: events.length,
-                  itemBuilder: (context, index) {
-                    return EventCard(eventId: events[index].id);
-                  },
-                ),
-    );
-  }
+Widget build(BuildContext context) {
+  return Scaffold(
+    appBar: AppBar(
+      title: const Text('My Events'),
+      actions: [
+        IconButton(
+          icon: Icon(Icons.delete),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => DeletedEventsPage()),
+            );
+          },
+        ),
+      ],
+    ),
+    body: isLoading
+        ? Center(child: CircularProgressIndicator())
+        : events.isEmpty
+            ? Center(child: Text('No events found'))
+            : ListView.builder(
+                itemCount: events.length,
+                itemBuilder: (context, index) {
+                  return EventCard(
+                    eventId: events[index].id,
+                    showAttendeesButton: true,
+                    viewer: false,
+                    onAttendeesButtonPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => AttendeesPage(eventId: events[index].id),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+  );
+}
+
 }

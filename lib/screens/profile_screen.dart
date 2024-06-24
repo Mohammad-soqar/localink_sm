@@ -8,9 +8,12 @@ import 'package:localink_sm/models/user.dart' as model;
 import 'package:localink_sm/resources/auth_methods.dart';
 import 'package:localink_sm/resources/firestore_methods.dart';
 import 'package:localink_sm/screens/Admin_event_approval_screen.dart';
+import 'package:localink_sm/screens/SubscribedEventsPage.dart';
 import 'package:localink_sm/screens/add_tester_screen.dart';
 import 'package:localink_sm/screens/edit_profile_screen.dart';
 import 'package:localink_sm/screens/feed_screen.dart';
+import 'package:localink_sm/screens/followers.dart';
+import 'package:localink_sm/screens/following.dart';
 import 'package:localink_sm/screens/login_screen.dart';
 import 'package:localink_sm/screens/chat.dart';
 import 'package:localink_sm/screens/my_events_screen.dart';
@@ -307,7 +310,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 height: 24,
               ),
               //Settings
-              InkWell(
+             /*  InkWell(
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (context) => AdminDashboard(),
@@ -335,8 +338,8 @@ class _ProfileScreenState extends State<ProfileScreen>
               ),
               const SizedBox(
                 height: 10,
-              ),
-              InkWell(
+              ), */
+              /* InkWell(
                 onTap: () {},
                 child: Container(
                   padding:
@@ -361,7 +364,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               ),
               const SizedBox(
                 height: 10,
-              ),
+              ), */
               //Activity
               InkWell(
                 onTap: () => Navigator.of(context).push(
@@ -396,7 +399,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               //QR Code
 
               //Get Verified
-              InkWell(
+           /*    InkWell(
                 onTap: () {
                   // Your tap callback code
                 },
@@ -420,16 +423,21 @@ class _ProfileScreenState extends State<ProfileScreen>
                     ],
                   ),
                 ),
-              ),
+              ), */
 
               const SizedBox(
                 height: 10,
               ),
               //Archived
-              InkWell(
-                onTap: () {
-                  // Your tap callback code
-                },
+              TextButton(
+                 onPressed: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SubscribedEventsPage(userId: FirebaseAuth.instance.currentUser!.uid),
+      ),
+    );
+  },
                 child: Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -445,7 +453,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                         color: primaryColor,
                       ), // Icon color
                       const SizedBox(width: 8), // Spacing between icon and text
-                      const Text('Archived',
+                      const Text('Subscribed Events',
                           style: TextStyle(color: Colors.white)), // Text style
                     ],
                   ),
@@ -455,7 +463,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 height: 10,
               ),
               //Archived
-              InkWell(
+            /*   InkWell(
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (context) => GeneratePinsScreen(),
@@ -481,7 +489,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                     ],
                   ),
                 ),
-              ),
+              ), */
               const SizedBox(
                 height: 10,
               ),
@@ -537,6 +545,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                       },
                     )
                   : Container(),
+
+                
 
               currentUser != null && currentUser.uid == allowedUserId
                   ? ListTile(
@@ -636,15 +646,29 @@ class _ProfileScreenState extends State<ProfileScreen>
                             child: Column(
                               children: [
                                 Row(
-                                  mainAxisSize: MainAxisSize.max,
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceEvenly,
-                                  children: [
-                                    buildStatColumn(postLen, "Posts"),
-                                    buildStatColumn(followers, "Followers"),
-                                    buildStatColumn(following, "Following"),
-                                  ],
-                                ),
+  mainAxisSize: MainAxisSize.max,
+  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+  children: [
+    buildStatColumn(postLen, "Posts", () {}),
+    buildStatColumn(followers, "Followers", () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => FollowersPage(userId: widget.uid),
+        ),
+      );
+    }),
+    buildStatColumn(following, "Following", () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => FollowingPage(userId: widget.uid),
+        ),
+      );
+    }),
+  ],
+),
+
                                 const SizedBox(
                                   height: 15,
                                 ),
@@ -1032,16 +1056,19 @@ class _ProfileScreenState extends State<ProfileScreen>
     }
   }
 
-  Column buildStatColumn(int num, String label) {
+  Column buildStatColumn(int num, String label, VoidCallback onTap) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Text(
-          num.toString(),
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
+        GestureDetector(
+          onTap: onTap,
+          child: Text(
+            num.toString(),
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
         Container(
@@ -1058,6 +1085,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       ],
     );
   }
+
 
 /*  void _showQrCodeDialog(BuildContext context, String profileUrl) {
     showDialog(
