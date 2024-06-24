@@ -7,9 +7,17 @@ import 'package:localink_sm/models/user.dart' as model;
 
 class EventCard extends StatefulWidget {
   final String eventId;
+  final bool? showAttendeesButton;
+  final bool? viewer;
+  final VoidCallback? onAttendeesButtonPressed;
 
-  const EventCard({Key? key, required this.eventId}) : super(key: key);
-
+  const EventCard({
+    Key? key,
+    required this.eventId,
+    this.showAttendeesButton,
+    this.onAttendeesButtonPressed, this.viewer,
+  }) : super(key: key);
+  
   @override
   State<EventCard> createState() => _EventCardState();
 }
@@ -80,8 +88,6 @@ class _EventCardState extends State<EventCard> {
     }
   }
 
-  
-
   Future<void> _deleteEvent(String eventId) async {
     try {
       var eventDoc = await FirebaseFirestore.instance
@@ -105,7 +111,6 @@ class _EventCardState extends State<EventCard> {
             .delete();
 
         await FirebaseFirestore.instance.collection('events').doc(eventId).set({
-          
           'deletedAt': FieldValue.serverTimestamp(),
         });
       }
@@ -232,29 +237,33 @@ class _EventCardState extends State<EventCard> {
                           alignment: Alignment.bottomCenter,
                           child: Row(
                             children: [
-                              Expanded(
-                                child: ElevatedButton(
-                                  onPressed: () =>
-                                      _confirmDelete(context, widget.eventId),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: highlightColor,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16.0),
-                                    ),
-                                  ),
-                                  child: const Text(
-                                    'Directions',
-                                    style: TextStyle(
-                                      color: primaryColor,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                ),
-                              ),
+                              widget.showAttendeesButton == false
+                                  ? Expanded(
+                                      child: ElevatedButton(
+                                        onPressed: () =>
+                                            _confirmDelete(context, widget.eventId),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: highlightColor,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(16.0),
+                                          ),
+                                        ),
+                                        child: const Text(
+                                          'Directions',
+                                          style: TextStyle(
+                                            color: primaryColor,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                  : Container(),
                               const SizedBox(
                                   width:
                                       16), // Add some spacing between the buttons
-                              Expanded(
+                               widget.viewer == false
+                              ?Expanded(
+                               
                                 child: ElevatedButton(
                                   onPressed: () =>
                                       _confirmDelete(context, widget.eventId),
@@ -272,7 +281,28 @@ class _EventCardState extends State<EventCard> {
                                     ),
                                   ),
                                 ),
-                              ),
+                              ): Container(),
+                              if (widget.showAttendeesButton == true) 
+                                const SizedBox(width: 16),
+                              if (widget.showAttendeesButton == true)
+                                Expanded(
+                                  child: ElevatedButton(
+                                    onPressed: widget.onAttendeesButtonPressed,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: highlightColor,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16.0),
+                                      ),
+                                    ),
+                                    child: const Text(
+                                      'Show Attendees',
+                                      style: TextStyle(
+                                        color: primaryColor,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                  ),
+                                ),
                             ],
                           ),
                         ),

@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
-import 'dart:ui';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -20,8 +19,6 @@ import 'package:localink_sm/utils/utils.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:http/http.dart' as http;
-
 import 'package:path_provider/path_provider.dart';
 import 'package:image/image.dart' as img;
 
@@ -33,7 +30,7 @@ class SignupScreen extends StatefulWidget {
 }
 
 class _SignupScreenState extends State<SignupScreen> {
-  final GlobalKey<FormState> formKey = GlobalKey<FormState>();
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
@@ -190,6 +187,7 @@ class _SignupScreenState extends State<SignupScreen> {
       return null;
     }
   }
+
   Future<ui.Image> loadImageFromAssets(String assetPath) async {
     ByteData data = await rootBundle.load(assetPath);
     Uint8List bytes = data.buffer.asUint8List();
@@ -204,31 +202,23 @@ class _SignupScreenState extends State<SignupScreen> {
     return completer.future;
   }
 
-
-
-  Future<void> createPins(Uint8List profileImage,String userid) async {
+  Future<void> createPins(Uint8List profileImage, String userid) async {
     // Load the pin SVG
-     
-     ui.Image pinImage =
-            await loadImageFromAssets('assets/icons/mappin22.png');
-        ui.Image userImage = await loadImageFromBytes(profileImage); 
-         Uint8List normalPin =
-            await createCustomMarkerImage(pinImage, userImage);
-               Uint8List bluePin =
-            await createCustomMarkerImage(pinImage, userImage);
-      
+    ui.Image pinImage = await loadImageFromAssets('assets/icons/mappin22.png');
+    ui.Image userImage = await loadImageFromBytes(profileImage);
+    Uint8List normalPin = await createCustomMarkerImage(pinImage, userImage);
+    Uint8List bluePin = await createCustomMarkerImage(pinImage, userImage);
 
-   
     // Save pins to Firebase Storage
-    await _uploadPinToStorage(normalPin, 'normal_pin.png',userid);
-    await _uploadPinToStorage(bluePin, 'blue_pin.png',userid);
+    await _uploadPinToStorage(normalPin, 'normal_pin.png', userid);
+    await _uploadPinToStorage(bluePin, 'blue_pin.png', userid);
   }
 
   Future<Uint8List> createCustomMarkerImage(
       ui.Image pinImage, ui.Image userImage) async {
     final double imageSize = pinImage.width / 2;
-    final Offset imageOffset = Offset((pinImage.width - imageSize) / 2,
-        (pinImage.height/1.65 - imageSize) / 2 - 15);
+    final Offset imageOffset =
+        Offset((pinImage.width - imageSize) / 2, (pinImage.height / 1.65 - imageSize) / 2 - 15);
     final ui.PictureRecorder recorder = ui.PictureRecorder();
     final Canvas canvas = Canvas(recorder);
     final Paint paint = Paint();
@@ -242,8 +232,7 @@ class _SignupScreenState extends State<SignupScreen> {
     canvas.clipPath(ovalPath, doAntiAlias: false);
     canvas.drawImageRect(
         userImage,
-        Rect.fromLTRB(
-            0, 0, userImage.width.toDouble(), userImage.height.toDouble()),
+        Rect.fromLTRB(0, 0, userImage.width.toDouble(), userImage.height.toDouble()),
         ovalRect,
         paint);
 
@@ -255,62 +244,63 @@ class _SignupScreenState extends State<SignupScreen> {
     return byteData!.buffer.asUint8List();
   }
 
-Future<void> _uploadPinToStorage(Uint8List pinImage, String fileName,String userid) async {
-  final tempDir = await getTemporaryDirectory();
-  final filePath = '${tempDir.path}/$fileName';
-  final file = File(filePath)..writeAsBytesSync(pinImage);
+  Future<void> _uploadPinToStorage(Uint8List pinImage, String fileName, String userid) async {
+    final tempDir = await getTemporaryDirectory();
+    final filePath = '${tempDir.path}/$fileName';
+    final file = File(filePath)..writeAsBytesSync(pinImage);
 
-  // Get the current user's ID
-  String userId = userid;
+    // Get the current user's ID
+    String userId = userid;
 
-  // Use the user's ID to create a unique folder for each user
-  await FirebaseStorage.instance.ref('user_pins/$userId/$fileName').putFile(file);
-}
-
-void signUpUser() async {
-  setState(() {
-    _isLoading = true;
-  });
-
-  // Compress the image first
-  if (_image != null) {
-    Uint8List? compressedImage = await compressUint8List(_image!);
-    if (compressedImage != null) {
-      _image = compressedImage;
-    }
+    // Use the user's ID to create a unique folder for each user
+    await FirebaseStorage.instance.ref('user_pins/$userId/$fileName').putFile(file);
   }
 
-  // Sign up the user
-  String res = await AuthMethods().signUpUser(
-    email: _emailController.text,
-    password: _passwordController.text,
-    phonenumber: _phonenumberController.text,
-    username: _usernameController.text,
-    file: _image!,
-  );
+  void signUpUser() async {
+    if (_formKey.currentState!.validate()) {
+      setState(() {
+        _isLoading = true;
+      });
 
-  setState(() {
-    _isLoading = false;
-  });
+      // Compress the image first
+      if (_image != null) {
+        Uint8List? compressedImage = await compressUint8List(_image!);
+        if (compressedImage != null) {
+          _image = compressedImage;
+        }
+      }
 
-  if (res != 'success') {
-    showSnackBar(res, context);
-  } else {
-    String userId = FirebaseAuth.instance.currentUser!.uid;
+      // Sign up the user
+      String res = await AuthMethods().signUpUser(
+        email: _emailController.text,
+        password: _passwordController.text,
+        phonenumber: _phonenumberController.text,
+        username: _usernameController.text,
+        file: _image!,
+      );
 
-    // Create and upload pins after the user is signed up
-    if (_image != null) {
-      await createPins(_image!, userId);
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (res != 'success') {
+        showSnackBar(res, context);
+      } else {
+        String userId = FirebaseAuth.instance.currentUser!.uid;
+
+        // Create and upload pins after the user is signed up
+        if (_image != null) {
+          await createPins(_image!, userId);
+        }
+
+        await saveDeviceToken(userId);
+
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => VerifyEmailScreen()),
+        ); // Navigate to VerifyEmailScreen
+      }
     }
-
-    await saveDeviceToken(userId);
-
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (context) => VerifyEmailScreen()),
-    ); // Navigate to VerifyEmailScreen
   }
-}
-
 
   void navigateToLogin() {
     Navigator.of(context).push(
@@ -329,289 +319,276 @@ void signUpUser() async {
           height: 20, // Adjust the size as needed
         ),
         centerTitle: true,
-        automaticallyImplyLeading:
-            false, // Prevents the AppBar from showing the back button automatically
+        automaticallyImplyLeading: false, // Prevents the AppBar from showing the back button automatically
       ),
       body: SafeArea(
-        child: Container(
-          padding: EdgeInsets.symmetric(horizontal: 32),
-          width: double.infinity,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              //svg image
-              Flexible(child: Container(), flex: 2),
-
-              const SizedBox(height: 24),
-              //username
-              Stack(
-                children: [
-                  _image != null
-                      ? CircleAvatar(
-                          radius: 64,
-                          backgroundImage: MemoryImage(_image!),
-                          backgroundColor: highlightColor,
-                        )
-                      : const CircleAvatar(
-                          radius: 64,
-                          backgroundImage: NetworkImage(
-                              'https://i.stack.imgur.com/l60Hf.png'),
-                          backgroundColor: highlightColor,
-                        ),
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    child: IconButton(
-                      onPressed: selectImage,
-                      icon: const Icon(Icons.add_a_photo),
-                    ),
-                  )
-                ],
-              ),
-              const SizedBox(height: 24),
-
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'User Name',
-                    style: TextStyle(
-                        color: primaryColor, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(
-                      height:
-                          8), // Provides spacing between the label and the input field.
-                  TextField(
-                    controller: _usernameController,
-                    keyboardType: TextInputType.text,
-                    decoration: InputDecoration(
-                      hintText: 'Enter Your User Name',
-                      hintStyle:
-                          TextStyle(color: Colors.white.withOpacity(0.5)),
-                      filled: true,
-                      fillColor: darkBackgroundColor,
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 10),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10.0),
-                        borderSide: BorderSide.none,
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10.0),
-                        borderSide: BorderSide(color: highlightColor),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10.0),
-                        borderSide: BorderSide(color: highlightColor),
-                      ),
-                    ),
-                    style: const TextStyle(
-                      color: primaryColor,
-                    ),
-                    cursorColor: highlightColor,
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 24),
-
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Email Address',
-                    style: TextStyle(
-                        color: primaryColor, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(
-                      height:
-                          8), // Provides spacing between the label and the input field.
-                  TextField(
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: InputDecoration(
-                      hintText: 'Enter Your Email',
-                      hintStyle:
-                          TextStyle(color: Colors.white.withOpacity(0.5)),
-                      filled: true,
-                      fillColor: darkBackgroundColor,
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 10),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10.0),
-                        borderSide: BorderSide.none,
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10.0),
-                        borderSide: BorderSide(color: highlightColor),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10.0),
-                        borderSide: BorderSide(color: highlightColor),
-                      ),
-                    ),
-                    style: const TextStyle(
-                      color: primaryColor,
-                    ),
-                    cursorColor: highlightColor,
-                  ),
-                ],
-              ),
-
-              //email
-
-              const SizedBox(height: 24),
-
-              //phone number
-              InternationalPhoneNumberInput(
-                onInputChanged: (PhoneNumber number) {
-                  print(number.phoneNumber);
-                },
-                onInputValidated: (bool value) {
-                  print(value);
-                },
-                selectorConfig: SelectorConfig(
-                  selectorType: PhoneInputSelectorType.BOTTOM_SHEET,
-                  useBottomSheetSafeArea: true,
-                ),
-                ignoreBlank: false,
-                autoValidateMode: AutovalidateMode.disabled,
-                selectorTextStyle: TextStyle(color: Colors.white),
-                initialValue: number,
-                textFieldController: _phonenumberController,
-                formatInput: true,
-                keyboardType: TextInputType.numberWithOptions(
-                    signed: true, decimal: true),
-                inputDecoration: InputDecoration(
-                  hintText: 'Enter Your Phone Number',
-                  hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-                  filled: true,
-                  fillColor: darkBackgroundColor,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10.0),
-                    borderSide: BorderSide.none,
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10.0),
-                    borderSide: BorderSide(color: highlightColor),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10.0),
-                    borderSide: BorderSide(color: highlightColor),
-                  ),
-                  contentPadding: EdgeInsets.symmetric(
-                      horizontal: 20, vertical: 10), // Adjust as needed
-                ),
-                inputBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: highlightColor),
-                ),
-                onSaved: (PhoneNumber number) {
-                  print('On Saved: $number');
-                },
-                textStyle: TextStyle(
-                  color: primaryColor,
-                ),
-              ),
-
-              const SizedBox(height: 24),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Password',
-                    style: TextStyle(
-                        color: primaryColor, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(
-                      height:
-                          8), // Provides spacing between the label and the input field.
-                  TextField(
-                    controller: _passwordController,
-                    keyboardType: TextInputType.text,
-                    obscureText:
-                        true, // This ensures the text is obscured (for password inputs)
-                    decoration: InputDecoration(
-                      labelText: 'Password', // If you need a label like 'Title'
-                      hintText: 'Enter Your Password',
-                      hintStyle:
-                          TextStyle(color: primaryColor.withOpacity(0.5)),
-                      filled: true,
-                      fillColor: darkBackgroundColor,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10.0),
-                        borderSide: BorderSide.none,
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10.0),
-                        borderSide: BorderSide(color: highlightColor),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10.0),
-                        borderSide: BorderSide(color: highlightColor),
-                      ),
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                    ),
-                    style: TextStyle(color: primaryColor),
-                    cursorColor: highlightColor,
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 24),
-
-              //button login
-              InkWell(
-                onTap: signUpUser,
-                child: Container(
-                  child: _isLoading
-                      ? const Center(
-                          child: CircularProgressIndicator(
-                            color: primaryColor,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const SizedBox(height: 24),
+                Stack(
+                  children: [
+                    _image != null
+                        ? CircleAvatar(
+                            radius: 64,
+                            backgroundImage: MemoryImage(_image!),
+                            backgroundColor: highlightColor,
+                          )
+                        : const CircleAvatar(
+                            radius: 64,
+                            backgroundImage: NetworkImage('https://i.stack.imgur.com/l60Hf.png'),
+                            backgroundColor: highlightColor,
                           ),
-                        )
-                      : const Text('Sign up'),
-                  width: double.infinity,
-                  alignment: Alignment.center,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  decoration: const ShapeDecoration(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.all(
-                          Radius.circular(4),
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      child: IconButton(
+                        onPressed: selectImage,
+                        icon: const Icon(Icons.add_a_photo),
+                      ),
+                    )
+                  ],
+                ),
+                const SizedBox(height: 24),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'User Name',
+                      style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _usernameController,
+                      keyboardType: TextInputType.text,
+                      decoration: InputDecoration(
+                        hintText: 'Enter Your User Name',
+                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                        filled: true,
+                        fillColor: darkBackgroundColor,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10.0),
+                          borderSide: BorderSide(color: highlightColor),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10.0),
+                          borderSide: BorderSide(color: highlightColor),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10.0),
+                          borderSide: BorderSide(color: highlightColor),
                         ),
                       ),
-                      color: highlightColor),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Flexible(child: Container(), flex: 2),
-              //transition to signUp
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    child: const Text("already have an account?"),
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 8,
+                      style: const TextStyle(
+                        color: primaryColor,
+                      ),
+                      cursorColor: highlightColor,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter a username';
+                        }
+                        return null;
+                      },
                     ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Email Address',
+                      style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: InputDecoration(
+                        hintText: 'Enter Your Email',
+                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                        filled: true,
+                        fillColor: darkBackgroundColor,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10.0),
+                          borderSide: BorderSide(color: highlightColor),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10.0),
+                          borderSide: BorderSide(color: highlightColor),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10.0),
+                          borderSide: BorderSide(color: highlightColor),
+                        ),
+                      ),
+                      style: const TextStyle(
+                        color: primaryColor,
+                      ),
+                      cursorColor: highlightColor,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter an email';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Phone Number',
+                      style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    InternationalPhoneNumberInput(
+                      onInputChanged: (PhoneNumber number) {
+                        print(number.phoneNumber);
+                      },
+                      onInputValidated: (bool value) {
+                        print(value);
+                      },
+                      selectorConfig: const SelectorConfig(
+                        selectorType: PhoneInputSelectorType.BOTTOM_SHEET,
+                        useBottomSheetSafeArea: true,
+                      ),
+                      ignoreBlank: false,
+                      autoValidateMode: AutovalidateMode.disabled,
+                      selectorTextStyle: const TextStyle(color: Colors.white),
+                      initialValue: number,
+                      textFieldController: _phonenumberController,
+                      formatInput: true,
+                      keyboardType: const TextInputType.numberWithOptions(signed: true, decimal: true),
+                      inputDecoration: InputDecoration(
+                        hintText: 'Enter Your Phone Number',
+                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                        filled: true,
+                        fillColor: darkBackgroundColor,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10.0),
+                          borderSide: BorderSide(color: highlightColor),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10.0),
+                          borderSide: BorderSide(color: highlightColor),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10.0),
+                          borderSide: BorderSide(color: highlightColor),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      ),
+                      inputBorder: const OutlineInputBorder(
+                        borderSide: BorderSide(color: highlightColor),
+                      ),
+                      onSaved: (PhoneNumber number) {
+                        print('On Saved: $number');
+                      },
+                      textStyle: const TextStyle(
+                        color: primaryColor,
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter a phone number';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Password',
+                      style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _passwordController,
+                      keyboardType: TextInputType.text,
+                      obscureText: true,
+                      decoration: InputDecoration(
+                        labelText: 'Password',
+                        hintText: 'Enter Your Password',
+                        hintStyle: TextStyle(color: primaryColor.withOpacity(0.5)),
+                        filled: true,
+                        fillColor: darkBackgroundColor,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10.0),
+                          borderSide: BorderSide(color: highlightColor),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10.0),
+                          borderSide: BorderSide(color: highlightColor),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10.0),
+                          borderSide: BorderSide(color: highlightColor),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      ),
+                      style: const TextStyle(color: primaryColor),
+                      cursorColor: highlightColor,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter a password';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                InkWell(
+                  onTap: signUpUser,
+                  child: Container(
+                    child: _isLoading
+                        ? const Center(
+                            child: CircularProgressIndicator(
+                              color: primaryColor,
+                            ),
+                          )
+                        : const Text('Sign up'),
+                    width: double.infinity,
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: const ShapeDecoration(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.all(
+                            Radius.circular(4),
+                          ),
+                        ),
+                        color: highlightColor),
                   ),
-                  GestureDetector(
-                    onTap: navigateToLogin,
-                    child: Container(
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text("already have an account?"),
+                    GestureDetector(
+                      onTap: navigateToLogin,
                       child: const Text(
                         "Login",
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 25,
+                        style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+                const SizedBox(height: 12),
+              ],
+            ),
           ),
         ),
       ),

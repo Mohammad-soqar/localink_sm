@@ -499,23 +499,23 @@ class _CaptionPageState extends State<CaptionPage> {
           // Display the selected media as a thumbnail
           Container(
             padding: const EdgeInsets.all(8.0),
-            height: 300, // Adjust the height as needed
+        
             child: widget.mediaType == MediaType.video
                 ? _videoPlayerController.value.isInitialized
                     ? FittedBox(
                         fit: BoxFit.contain,
                         child: SizedBox(
-                          width: _videoPlayerController.value.size?.width ?? 0,
+                          width: 200,
                           height:
-                              _videoPlayerController.value.size?.height ?? 0,
+                              350,
                           child: VideoPlayer(_videoPlayerController),
                         ),
                       )
                     : Center(child: CircularProgressIndicator())
                 : Image.file(
                     widget.selectedMedia,
-                    width: 150, // Adjust the size as needed
-                    height: 150,
+                    width: 200, // Adjust the size as needed
+                    height: 200,
                     fit: BoxFit.cover,
                   ),
           ),

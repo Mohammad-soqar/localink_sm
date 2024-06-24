@@ -25,23 +25,23 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
   void initState() {
     super.initState();
     _setInitialLocation();
-  //  _fetchRestrictedAreas();
+   _fetchRestrictedAreas();
   }
 
   void _setInitialLocation() {
     // Set the initial location here
   }
 
-/*   Future<void> _fetchRestrictedAreas() async {
+  Future<void> _fetchRestrictedAreas() async {
     RestrictedAreasService service = RestrictedAreasService();
     List<LatLng> areas = await service.fetchRestrictedAreas();
     setState(() {
       _restrictedAreas = areas;
     });
     _displayRestrictedAreas();
-  } */
+  }
 
-/*   Future<void> _displayRestrictedAreas() async {
+  Future<void> _displayRestrictedAreas() async {
     final controller = await _controllerCompleter.future;
     for (var area in _restrictedAreas) {
       controller.addCircle(
@@ -53,13 +53,13 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
         ),
       );
     }
-  } */
+  } 
 
   Future<void> _onMapCreated(MapboxMapController controller) async {
     _controller = controller;
     _controllerCompleter.complete(controller);
     await _moveCameraToCurrentLocation();
-  //  _displayRestrictedAreas();
+    _displayRestrictedAreas();
   }
 
   Future<void> _moveCameraToCurrentLocation() async {
