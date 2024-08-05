@@ -111,8 +111,6 @@ class _PostCardState extends State<PostCard>
 
       isPostedByVisitor = isVisiting;
 
-   
-
       return mediaUrls;
     } catch (err) {
       print('Error fetching post media: $err');
@@ -421,7 +419,7 @@ class _PostCardState extends State<PostCard>
                             Navigator.of(context).pop();
                           },
                         ),
-                     
+
                       // Add more items here
                     ],
                   ),
@@ -491,9 +489,7 @@ class _PostCardState extends State<PostCard>
                           children: [
                             Text(userData!.username),
                             const SizedBox(width: 4),
-                            if(isPostedByVisitor)
-                            _buildBadge(),
-                            
+                            if (isPostedByVisitor) _buildBadge(),
                           ],
                         ),
                         subtitle: Row(
@@ -508,11 +504,13 @@ class _PostCardState extends State<PostCard>
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
-                                  widget.snap['locationName'],
+                                  widget.snap['locationName'].length > 24
+                                      ? '${widget.snap['locationName'].substring(0, 21)}...'
+                                      : widget.snap['locationName'],
                                   style: const TextStyle(
                                     fontSize: 12,
                                   ),
-                                ),
+                                )
                               ],
                             ),
                           ],

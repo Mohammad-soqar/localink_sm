@@ -310,7 +310,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 height: 24,
               ),
               //Settings
-             /*  InkWell(
+              /*  InkWell(
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (context) => AdminDashboard(),
@@ -399,7 +399,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               //QR Code
 
               //Get Verified
-           /*    InkWell(
+              /*    InkWell(
                 onTap: () {
                   // Your tap callback code
                 },
@@ -429,15 +429,16 @@ class _ProfileScreenState extends State<ProfileScreen>
                 height: 10,
               ),
               //Archived
-              TextButton(
-                 onPressed: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => SubscribedEventsPage(userId: FirebaseAuth.instance.currentUser!.uid),
-      ),
-    );
-  },
+              InkWell(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => SubscribedEventsPage(
+                          userId: FirebaseAuth.instance.currentUser!.uid),
+                    ),
+                  );
+                },
                 child: Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -453,17 +454,20 @@ class _ProfileScreenState extends State<ProfileScreen>
                         color: primaryColor,
                       ), // Icon color
                       const SizedBox(width: 8), // Spacing between icon and text
-                      const Text('Subscribed Events',
-                          style: TextStyle(color: Colors.white)), // Text style
+                      const Text(
+                        'Subscribed Events',
+                        style: TextStyle(color: Colors.white),
+                      ), // Text style
                     ],
                   ),
                 ),
               ),
+
               const SizedBox(
                 height: 10,
               ),
               //Archived
-            /*   InkWell(
+              /*   InkWell(
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (context) => GeneratePinsScreen(),
@@ -546,8 +550,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                     )
                   : Container(),
 
-                
-
               currentUser != null && currentUser.uid == allowedUserId
                   ? ListTile(
                       title: const Text('Add Tester'),
@@ -594,11 +596,13 @@ class _ProfileScreenState extends State<ProfileScreen>
                 ),
               )
             : IconButton(
-              icon: const Icon(Icons.arrow_back_rounded, ),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
+                icon: const Icon(
+                  Icons.arrow_back_rounded,
+                ),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+              ),
       ),
       body: Stack(
         children: [
@@ -646,29 +650,31 @@ class _ProfileScreenState extends State<ProfileScreen>
                             child: Column(
                               children: [
                                 Row(
-  mainAxisSize: MainAxisSize.max,
-  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-  children: [
-    buildStatColumn(postLen, "Posts", () {}),
-    buildStatColumn(followers, "Followers", () {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => FollowersPage(userId: widget.uid),
-        ),
-      );
-    }),
-    buildStatColumn(following, "Following", () {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => FollowingPage(userId: widget.uid),
-        ),
-      );
-    }),
-  ],
-),
-
+                                  mainAxisSize: MainAxisSize.max,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceEvenly,
+                                  children: [
+                                    buildStatColumn(postLen, "Posts", () {}),
+                                    buildStatColumn(followers, "Followers", () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              FollowersPage(userId: widget.uid),
+                                        ),
+                                      );
+                                    }),
+                                    buildStatColumn(following, "Following", () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              FollowingPage(userId: widget.uid),
+                                        ),
+                                      );
+                                    }),
+                                  ],
+                                ),
                                 const SizedBox(
                                   height: 15,
                                 ),
@@ -678,35 +684,39 @@ class _ProfileScreenState extends State<ProfileScreen>
                                   children: [
                                     FirebaseAuth.instance.currentUser!.uid ==
                                             widget.uid
-                                        ? TextButton(
-                                            onPressed: () {
-                                              Navigator.of(context).push(
-                                                MaterialPageRoute(
-                                                  builder: (context) =>
-                                                      EditProfilePage(),
-                                                ),
-                                              );
-                                            },
-                                            style: TextButton.styleFrom(
-                                              backgroundColor: highlightColor,
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(16.0),
-                                              ),
-                                            ),
-                                            child: const Padding(
-                                              padding: EdgeInsets.symmetric(
-                                                  vertical: 0,
-                                                  horizontal: 30.0),
-                                              child: Text(
-                                                'Edit Profile',
-                                                style: TextStyle(
-                                                  color: primaryColor,
-                                                  fontSize: 16,
+                                        ? Container(
+                                            margin: const EdgeInsets.only(left:70.0), // Add left margin
+
+                                          child: TextButton(
+                                              onPressed: () {
+                                                Navigator.of(context).push(
+                                                  MaterialPageRoute(
+                                                    builder: (context) =>
+                                                        EditProfilePage(),
+                                                  ),
+                                                );
+                                              },
+                                              style: TextButton.styleFrom(
+                                                backgroundColor: highlightColor,
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(16.0),
                                                 ),
                                               ),
+                                              child: const Padding(
+                                                padding: EdgeInsets.symmetric(
+                                                    vertical: 0,
+                                                    horizontal: 30.0),
+                                                child: Text(
+                                                  'Edit Profile',
+                                                  style: TextStyle(
+                                                    color: primaryColor,
+                                                    fontSize: 16,
+                                                  ),
+                                                ),
+                                              ),
                                             ),
-                                          )
+                                        )
                                         : Container(),
 
                                     FirebaseAuth.instance.currentUser!.uid !=
@@ -1085,7 +1095,6 @@ class _ProfileScreenState extends State<ProfileScreen>
       ],
     );
   }
-
 
 /*  void _showQrCodeDialog(BuildContext context, String profileUrl) {
     showDialog(
