@@ -264,10 +264,15 @@ class _AddEventPageState extends State<AddEventPage> {
 
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
-      const size = Size(150, 150); // Adjust size as needed
+      final paint = Paint()..color = _pinColor;
+      final size = Size(100, 100); // Adjust size as needed
+
+      // Draw the pin background
+      canvas.drawCircle(
+          Offset(size.width / 2, size.height / 2), size.width / 2, paint);
 
       // Draw the logo in the center
-      const logoSize = Size(150, 150); // Adjust logo size as needed
+      final logoSize = Size(150, 150); // Adjust logo size as needed
       final Rect logoRect =
           Rect.fromLTWH(0, 0, logoSize.width, logoSize.height);
 
