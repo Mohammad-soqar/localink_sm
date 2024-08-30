@@ -220,55 +220,56 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
     }
   }
 
-Future<Uint8List> _getFriendPin(String userId) async {
-  // Assuming the pin is stored as `normal_pin.png` in `user_pins/{userId}/`
-  Reference ref = FirebaseStorage.instance.ref('user_pins/$userId/normal_pin.png');
-  Uint8List? pinImage = await ref.getData();
-  if (pinImage != null) {
-    return pinImage;
-  } else {
-    throw Exception('Pin image not found for user: $userId');
+  Future<Uint8List> _getFriendPin(String userId) async {
+    // Assuming the pin is stored as `normal_pin.png` in `user_pins/{userId}/`
+    Reference ref =
+        FirebaseStorage.instance.ref('user_pins/$userId/normal_pin.png');
+    Uint8List? pinImage = await ref.getData();
+    if (pinImage != null) {
+      return pinImage;
+    } else {
+      throw Exception('Pin image not found for user: $userId');
+    }
   }
-}
 
- void _showFriendsLocationsRealTime() {
-  var user = FirebaseAuth.instance.currentUser;
-  if (user != null) {
-    FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .snapshots()
-        .listen((userDoc) {
-      var following = List<String>.from(userDoc.data()?['following'] ?? []);
-      for (String friendId in following) {
-        FirebaseFirestore.instance
-            .collection('user_locations')
-            .doc(friendId)
-            .snapshots()
-            .listen((friendLocationDoc) async {
-          try {
-            if (friendLocationDoc.exists) {
-              bool isOnline = await isFriendOnline(friendId);
-              if (isOnline) {
-                var locData = friendLocationDoc.data()!;
-                LatLng friendLatLng =
-                    LatLng(locData['latitude'], locData['longitude']);
-                Uint8List pinImage = await _getFriendPin(friendId);
-                _updateOrRemoveFriendMarker(friendId, friendLatLng, pinImage);
+  void _showFriendsLocationsRealTime() {
+    var user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .snapshots()
+          .listen((userDoc) {
+        var following = List<String>.from(userDoc.data()?['following'] ?? []);
+        for (String friendId in following) {
+          FirebaseFirestore.instance
+              .collection('user_locations')
+              .doc(friendId)
+              .snapshots()
+              .listen((friendLocationDoc) async {
+            try {
+              if (friendLocationDoc.exists) {
+                bool isOnline = await isFriendOnline(friendId);
+                if (isOnline) {
+                  var locData = friendLocationDoc.data()!;
+                  LatLng friendLatLng =
+                      LatLng(locData['latitude'], locData['longitude']);
+                  Uint8List pinImage = await _getFriendPin(friendId);
+                  _updateOrRemoveFriendMarker(friendId, friendLatLng, pinImage);
+                } else {
+                  _removeFriendMarker(friendId);
+                }
               } else {
                 _removeFriendMarker(friendId);
               }
-            } else {
-              _removeFriendMarker(friendId);
+            } catch (e) {
+              print("Error handling friend locations: $e");
             }
-          } catch (e) {
-            print("Error handling friend locations: $e");
-          }
-        });
-      }
-    });
+          });
+        }
+      });
+    }
   }
-}
 
   bool _isWithinRange(LatLng friendLatLng) {
     // Assuming LocationService keeps the latest location updated
@@ -289,35 +290,37 @@ Future<Uint8List> _getFriendPin(String userId) async {
     return distance <= 700; // Check if the distance is within 700 meters
   }
 
- void _addFriendMarker(String friendId, LatLng location, Uint8List pinImage) {
-  if (friendMarkers.containsKey(friendId)) {
-    // Update existing marker
-    mapController?.updateSymbol(
-      friendMarkers[friendId]!,
-      SymbolOptions(
-        geometry: location,
-        zIndex: 1,
-      ),
-    );
-  } else {
-    // Add the image to the map and then add the marker
-    mapController?.addImage(friendId, pinImage).then((_) {
-      mapController?.addSymbol(
+  void _addFriendMarker(String friendId, LatLng location, Uint8List pinImage) {
+    if (friendMarkers.containsKey(friendId)) {
+      // Update existing marker
+      mapController?.updateSymbol(
+        friendMarkers[friendId]!,
         SymbolOptions(
           geometry: location,
-          iconImage: friendId, // Use the friendId as the identifier for the image
-          iconSize: 0.8,
           zIndex: 1,
         ),
-      ).then((symbol) {
-        friendMarkers[friendId] = symbol;
+      );
+    } else {
+      // Add the image to the map and then add the marker
+      mapController?.addImage(friendId, pinImage).then((_) {
+        mapController
+            ?.addSymbol(
+          SymbolOptions(
+            geometry: location,
+            iconImage:
+                friendId, // Use the friendId as the identifier for the image
+            iconSize: 0.8,
+            zIndex: 1,
+          ),
+        )
+            .then((symbol) {
+          friendMarkers[friendId] = symbol;
+        });
+      }).catchError((error) {
+        print('Error adding image: $error');
       });
-    }).catchError((error) {
-      print('Error adding image: $error');
-    });
+    }
   }
-}
-
 
   Future<bool> isFriendOnline(String friendId) async {
     DatabaseReference ref = databaseReference.ref('status/$friendId/online');
@@ -327,10 +330,11 @@ Future<Uint8List> _getFriendPin(String userId) async {
 
   OnlineStatusCache onlineStatusCache = OnlineStatusCache();
 
-  void _updateOrRemoveFriendMarker(String friendId, LatLng location,Uint8List  pinImage) async {
+  void _updateOrRemoveFriendMarker(
+      String friendId, LatLng location, Uint8List pinImage) async {
     bool online = await onlineStatusCache.isFriendOnline(friendId);
     if (online && _isWithinRange(location)) {
-      _addFriendMarker(friendId, location,pinImage);
+      _addFriendMarker(friendId, location, pinImage);
     } else {
       _removeFriendMarker(friendId);
     }
@@ -809,8 +813,9 @@ Future<Uint8List> _getFriendPin(String userId) async {
                   onPressed: () {},
                 ),
                 Text(
-                  userLocation ??
-                      'Featching Location', // Placeholder for dynamic location name
+                  (userLocation?.length ?? 0) > 36
+                      ? '${userLocation?.substring(0, 30)}...'
+                      : userLocation ?? 'Fetching Location',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,
