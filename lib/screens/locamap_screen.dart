@@ -33,6 +33,7 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
   MapboxMapController? mapController;
   Location location = Location();
   Symbol? _userSymbol;
+  double _currentZoom = 15.0;
   late Future<String?> userImageFuture;
   Map<String, Symbol> friendMarkers = {};
   Map<String, Uint8List> imageCache = {};
@@ -54,7 +55,7 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
     userImageFuture = getCurrentUserImage();
     initializeMap();
 
-    _animationController = AnimationController(
+    /*  _animationController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
@@ -62,7 +63,7 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
     _animation = CurvedAnimation(
       parent: _animationController,
       curve: Curves.easeInOut,
-    );
+    ); */
   }
 
   void initializeMap() {
@@ -98,7 +99,7 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
       mapController = controller;
       mapController!.onSymbolTapped.add(_onSymbolTapped);
     });
-
+    mapController!.addListener(_onCameraIdle);
     print("Map controller initialized.");
   }
 
@@ -606,14 +607,14 @@ Future<Uint8List> _getFriendPin(String userId) async {
         await _addImageToMap(eventId, imageCache[pinUrl]!); // Use cached image
       }
 
-      _addEventCircle(eventId, location, () {
+      _addBreathingCircle(eventId, location, () {
         _addSymbol(eventId, location); // Add the symbol after the circle
-      }, pinColor);
+      });
     }
   }
 
-  void _addEventCircle(String eventId, LatLng location, VoidCallback onComplete,
-      String pinColor) {
+  void _addBreathingCircle(
+      String eventId, LatLng location, VoidCallback onComplete) {
     if (mapController == null) return;
     CircleOptions circleOptions = CircleOptions(
       geometry: location,
@@ -626,40 +627,44 @@ Future<Uint8List> _getFriendPin(String userId) async {
 
     mapController?.addCircle(circleOptions).then((circle) {
       eventCircles[eventId] = circle;
-
+      _animateCircle(circle);
       onComplete(); // Callback to add symbol after circle
+    });
+  } */
+
+  void _onCameraIdle() {
+    setState(() {
+      _currentZoom = mapController!.cameraPosition!.zoom;
+      _updateMarkersVisibility();
     });
   }
 
+  void _updateMarkersVisibility() {
+    for (var eventId in eventMarkers.keys) {
+      if (_currentZoom < 10.0) {
+        mapController?.removeSymbol(eventMarkers[eventId]!);
+      } else {
+        // Re-add marker if it was removed
+        var eventLocation = eventMarkers[eventId]!.options.geometry;
+        _addSymbol(eventId, eventLocation!);
+      }
+    }
+  }
+
   void _addSymbol(String eventId, LatLng location) {
-    // Remove existing symbol if any
     if (eventMarkers.containsKey(eventId)) {
       mapController?.removeSymbol(eventMarkers[eventId]!);
     }
 
     // Add new symbol
-    mapController?.addSymbol(
-      SymbolOptions(
-        geometry: location,
-        iconImage: eventId, // Use the eventId as the image identifier
-        iconSize: 0.8,
-        zIndex: 0, // Lower zIndex for events
-      ),
-      {'id': eventId},
-    ).then((symbol) {
+    mapController
+        ?.addSymbol(SymbolOptions(
+      geometry: location,
+      iconImage: eventId, // Use the eventId as the image identifier
+      iconSize: 0.8,
+    ))
+        .then((symbol) {
       eventMarkers[eventId] = symbol;
-    });
-  }
-
-  void _animateCircle(Circle circle) {
-    _animationController.addListener(() {
-      double scale = _animation.value;
-      mapController?.updateCircle(
-          circle,
-          CircleOptions(
-            circleOpacity: (0.2 + 0.2 * scale), // Animate opacity
-            circleRadius: (15.0 + 10.0 * scale), // Animate radius
-          ));
     });
   }
 
