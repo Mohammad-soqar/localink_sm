@@ -71,3 +71,5 @@ lib/generated_plugin_registrant.dart
 !**/ios/**/default.pbxuser
 !**/ios/**/default.perspectivev3
 !/packages/flutter_tools/test/data/dart_dependencies_test/**/.packages
+firebase-admin-test/localink-778c5-firebase-adminsdk-esl97-30f9df7c1b.json
+functions/localink-778c5-firebase-adminsdk-esl97-30f9df7c1b.json
