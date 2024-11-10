@@ -97,67 +97,69 @@ class _MessagePageState extends State<MessagePage> {
     super.dispose();
   }
 
- void sendMessage() async {
-  if (_messageController.text.trim().isNotEmpty) {
-    try {
-      List<String> participantIDs = [FirebaseAuth.instance.currentUser!.uid];
-      if (widget.user != null) {
-        participantIDs.add(widget.user!.uid);
-      }
-
-      // Fetch the sender's user data
-      String currentUserId = FirebaseAuth.instance.currentUser!.uid;
-      DocumentSnapshot senderSnapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(currentUserId)
-          .get();
-      var senderData = senderSnapshot.data() as Map<String, dynamic>;
-      String senderName = senderData['username'];
-
-      // Check if the conversationId is empty
-      String? newConversationId =
-          conversationId == null ? null : conversationId;
-
-      // Send the message
-      newConversationId = await _firestoreMethods.sendMessage(
-        conversationId: newConversationId,
-        participantIDs: participantIDs,
-        senderId: FirebaseAuth.instance.currentUser!.uid,
-        messageText: _messageController.text.trim(),
-        messageType: 'text',
-      );
-
-      setState(() {
-        conversationId = newConversationId;
-      });
-
-      _messageController.clear();
-
-      if (widget.user != null) {
-        // Send notification to the recipient
-        HttpsCallable callable = FirebaseFunctions.instance
-            .httpsCallable('sendMessageNotification');
-        await callable.call({
-          'userId': widget.user!.uid, // The ID of the recipient
-          'messageSenderId': FirebaseAuth.instance.currentUser!.uid, // The ID of the sender
-          'messageSenderName': senderName, // The name of the sender
-          'messageText': _messageController.text.trim(), // The text of the message
-        });
-      }
-
-      _firestoreMethods.resetUnreadCount(conversationId!, currentUserId);
-
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_scrollController.hasClients) {
-          _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+  void sendMessage() async {
+    if (_messageController.text.trim().isNotEmpty) {
+      try {
+        List<String> participantIDs = [FirebaseAuth.instance.currentUser!.uid];
+        if (widget.user != null) {
+          participantIDs.add(widget.user!.uid);
         }
-      });
-    } catch (e) {
-      print(e);
+
+        // Fetch the sender's user data
+        String currentUserId = FirebaseAuth.instance.currentUser!.uid;
+        DocumentSnapshot senderSnapshot = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(currentUserId)
+            .get();
+        var senderData = senderSnapshot.data() as Map<String, dynamic>;
+        String senderName = senderData['username'];
+
+        // Check if the conversationId is empty
+        String? newConversationId =
+            conversationId == null ? null : conversationId;
+
+        // Send the message
+        newConversationId = await _firestoreMethods.sendMessage(
+          conversationId: newConversationId,
+          participantIDs: participantIDs,
+          senderId: FirebaseAuth.instance.currentUser!.uid,
+          messageText: _messageController.text.trim(),
+          messageType: 'text',
+        );
+
+        setState(() {
+          conversationId = newConversationId;
+        });
+
+        _messageController.clear();
+
+        if (widget.user != null) {
+          // Send notification to the recipient
+          HttpsCallable callable = FirebaseFunctions.instance
+              .httpsCallable('sendMessageNotification');
+          await callable.call({
+            'userId': widget.user!.uid, // The ID of the recipient
+            'messageSenderId':
+                FirebaseAuth.instance.currentUser!.uid, // The ID of the sender
+            'messageSenderName': senderName, // The name of the sender
+            'messageText':
+                _messageController.text.trim(), // The text of the message
+          });
+        }
+
+        _firestoreMethods.resetUnreadCount(conversationId!, currentUserId);
+
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_scrollController.hasClients) {
+            _scrollController
+                .jumpTo(_scrollController.position.maxScrollExtent);
+          }
+        });
+      } catch (e) {
+        print(e);
+      }
     }
   }
-}
-
 
   @override
   Widget build(BuildContext context) {
@@ -223,12 +225,13 @@ class _MessagePageState extends State<MessagePage> {
                 ? Center(
                     child: _buildInitialMessage(),
                   )
-                : StreamBuilder<QuerySnapshot>(
+                : StreamBuilder<List<Map<String, dynamic>>>(
                     stream:
                         _firestoreMethods.getMessages(widget.conversationId),
                     builder: (context, snapshot) {
-                      if (snapshot.hasError)
+                      if (snapshot.hasError) {
                         return Text('Error: ${snapshot.error}');
+                      }
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return Center(
                           child: CircularProgressIndicator(
@@ -237,7 +240,7 @@ class _MessagePageState extends State<MessagePage> {
                         );
                       }
 
-                      List<DocumentSnapshot> docs = snapshot.data!.docs;
+                      List<Map<String, dynamic>> docs = snapshot.data ?? [];
                       if (docs.isEmpty) {
                         return Center(
                           child: _buildInitialMessage(),
@@ -246,7 +249,7 @@ class _MessagePageState extends State<MessagePage> {
 
                       List<dynamic> itemsWithSeparators =
                           _processMessagesForDateSeparators(
-                              docs.reversed.toList());
+                              docs.reversed.cast<DocumentSnapshot<Object?>>().toList());
                       return _buildMessagesList(itemsWithSeparators);
                     },
                   ),
