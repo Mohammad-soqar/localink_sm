@@ -56,17 +56,6 @@ To get started with Localink, you’ll need a basic Flutter setup. Make sure Flu
 2. Open the project in your preferred Flutter-supported IDE.
 3. Ensure all dependencies are resolved in your `pubspec.yaml` file.
 
-## Usage
-
-Once set up, Localink provides an intuitive interface for users to explore their local community. Navigate through the app to access event listings, connect with nearby users, and find local resources and services. 
-
-## Contributing
-
-Contributions are welcome! If you’d like to suggest improvements or add new features, please follow these steps:
-1. Fork the repository.
-2. Create a new branch for your feature.
-3. Submit a pull request detailing your changes.
-
 ## License
 
 Distributed under the MIT License. See `LICENSE` for more information.
