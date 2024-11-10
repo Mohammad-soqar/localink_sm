@@ -25,8 +25,18 @@ Localink is a mobile solution designed to bridge the gap between individuals and
 
 ### Built With
 
-- [Flutter](https://flutter.dev/) - A UI toolkit for building natively compiled applications for mobile, web, and desktop from a single codebase.
-- Dart - The primary language used with Flutter for frontend and backend integration.
+- [Flutter](https://flutter.dev/) - A framework for building cross-platform mobile applications from a single codebase.
+- [Firebase](https://firebase.google.com/) - Backend services for authentication, real-time database, and cloud storage.
+- [Node.js](https://nodejs.org/) - Used for cloud functions to manage backend processes.
+- [Cloudinary](https://cloudinary.com/) - Used for video upload, compression, and optimization.
+- [Google Cloud Platform (GCP)](https://cloud.google.com/):
+  - **Cloud Vision API** - For analyzing images to identify and tag objects or scenes.
+  - **Cloud Natural Language API** - For analyzing and processing user-generated content.
+- **Usage of the cloud functions**:
+  1. **Offensive Language Check**: The function first checks if the user content contains inappropriate language using a custom-defined `containsOffensiveLanguage` function.
+  2. **Sentiment Analysis**: Next, the Google Cloud Natural Language API analyzes the sentiment of the content to detect any negative sentiment. If the sentiment score is low (indicating negativity), the content is flagged as inappropriate.
+  3. **Image Safety Check**: For each image URL, the Google Cloud Vision API’s Safe Search Detection feature assesses the images to ensure they don't contain adult, violent, or disturbing content.
+
 
 ## Getting Started
 
