@@ -205,7 +205,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver{
                         ),
                         child: referencePhoto == null
                             ? const Icon(Icons.add_a_photo,
-                                color:
+                    p            color:
                                     secondaryColor) // Adjusted for visibility
                             : Image.memory(referencePhoto!, fit: BoxFit.cover),
                       ),
