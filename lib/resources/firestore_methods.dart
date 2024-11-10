@@ -8,14 +8,13 @@ import 'package:localink_sm/models/report.dart';
 import 'package:localink_sm/resources/storage_methods.dart';
 import 'package:localink_sm/utils/location_utils.dart';
 import 'package:uuid/uuid.dart';
+import 'package:encrypt/encrypt.dart' as encrypt;
 
 class FireStoreMethods {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
   RegExp regex = RegExp(r'\B#\w+');
   final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
-
-  //upload post
 
   Future<String> createPost(
     String uid,
@@ -423,20 +422,29 @@ class FireStoreMethods {
     required String messageType,
     List<String>? participantIDs,
   }) async {
+    final key = encrypt.Key.fromUtf8(
+        'my32lengthsupersecretnooneknows1'); // 32 chars encryption key
+    final iv = encrypt.IV.fromLength(16); // Random initialization vector (IV)
+    final encrypter = encrypt.Encrypter(encrypt.AES(key));
+
     String content;
+
+    // Encrypt text message content
     if (messageType == 'text' && messageText != null) {
-      content = messageText;
+      final encryptedMessage = encrypter.encrypt(messageText, iv: iv);
+      content = '${iv.base64}:${encryptedMessage.base64}'; // Prepend IV
     } else if (mediaBytes != null) {
+      // Upload media if provided
       String mediaUrl = await StorageMethods().uploadImageToStorage(
           'message_media/$conversationId', mediaBytes, false);
       content = mediaUrl;
     } else if (messageType == 'post' && sharedPostId != null) {
-      content = sharedPostId;
+      content = sharedPostId; // For shared post, use the post ID
     } else {
       throw 'No content to send';
     }
 
-    // If conversationId is null, try to find or create a conversation
+    // If conversation does not exist, create a new one
     if (conversationId == null) {
       if (participantIDs == null || participantIDs.isEmpty) {
         throw 'Participant IDs must be provided to create a new conversation';
@@ -448,24 +456,28 @@ class FireStoreMethods {
 
     var message = {
       'senderID': senderId,
-      'content': content,
+      'content': content, // Encrypted content
       'timestamp': FieldValue.serverTimestamp(),
       'type': messageType,
       if (messageType == 'post') 'sharedPostId': sharedPostId,
     };
 
+    // Store message in Firestore
     await _firestore
         .collection('conversations')
         .doc(conversationId)
         .collection('messages')
         .add(message);
 
+    // Update conversation details with the last message
     await _firestore.collection('conversations').doc(conversationId).update({
-      'lastMessage':
-          messageType == 'text' ? content : '[${messageType.toUpperCase()}]',
+      'lastMessage': messageType == 'text'
+          ? '[ENCRYPTED]'
+          : '[${messageType.toUpperCase()}]',
       'lastMessageTimestamp': FieldValue.serverTimestamp(),
     });
 
+    // Update unread counts for participants
     if (participantIDs != null) {
       DocumentSnapshot conversationSnapshot = await _firestore
           .collection('conversations')
@@ -490,6 +502,50 @@ class FireStoreMethods {
     return conversationId;
   }
 
+  encrypt.Encrypter getEncrypter() {
+    final key = encrypt.Key.fromUtf8(
+        'my32lengthsupersecretnooneknows1'); // 32 chars key
+    return encrypt.Encrypter(encrypt.AES(key)); // Use AES encryption
+  }
+
+  String decryptMessage(String encryptedMessageWithIV) {
+    final encrypter = getEncrypter();
+
+    try {
+      final parts = encryptedMessageWithIV.split(':');
+      if (parts.length != 2) {
+        throw 'Invalid encrypted message format';
+      }
+
+      final iv = encrypt.IV.fromBase64(parts[0]); // Extract IV
+      final encryptedMessage = parts[1]; // Extract encrypted message
+
+      return encrypter.decrypt64(encryptedMessage, iv: iv);
+    } catch (e) {
+      print('Decryption failed: $e');
+      return encryptedMessageWithIV; // Return original message if decryption fails
+    }
+  }
+
+  Stream<List<Map<String, dynamic>>> getMessages(String conversationId) {
+    return _firestore
+        .collection('conversations/$conversationId/messages')
+        .orderBy('timestamp', descending: false)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) {
+        var messageData = doc.data() as Map<String, dynamic>;
+
+        // Decrypt content if message type is 'text'
+        if (messageData['type'] == 'text') {
+          messageData['content'] = decryptMessage(messageData['content']);
+        }
+
+        return messageData;
+      }).toList();
+    });
+  }
+
   Future<String> createConversation(List<String> participantIDs) async {
     participantIDs.sort();
     String participantsKey = participantIDs.join('_');
@@ -504,13 +560,6 @@ class FireStoreMethods {
     });
 
     return conversation.id;
-  }
-
-  Stream<QuerySnapshot> getMessages(String conversationId) {
-    return _firestore
-        .collection('conversations/$conversationId/messages')
-        .orderBy('timestamp', descending: false)
-        .snapshots();
   }
 
   Future<void> resetUnreadCount(String conversationId, String userId) async {
