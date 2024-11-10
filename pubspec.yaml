@@ -36,6 +36,7 @@ dependencies:
   cupertino_icons: ^1.0.2
   custom_map_markers: ^0.0.2+1
   device_info_plus: ^9.1.2
+  encrypt: ^5.0.3
   file_picker: ^6.1.1
   firebase_auth: ^4.19.1
   firebase_core: ^2.29.0
@@ -76,7 +77,6 @@ dependencies:
   version: ^3.0.2
   video_compress: ^3.1.2
   video_player: ^2.8.6
-  video_thumbnail: ^0.5.3
   visibility_detector: ^0.4.0+2
   wechat_assets_picker: ^8.9.0-dev.1
 
