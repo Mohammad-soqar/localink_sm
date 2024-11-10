@@ -611,30 +611,11 @@ class _LocaMapState extends State<LocaMap> with SingleTickerProviderStateMixin {
         await _addImageToMap(eventId, imageCache[pinUrl]!); // Use cached image
       }
 
-      _addBreathingCircle(eventId, location, () {
-        _addSymbol(eventId, location); // Add the symbol after the circle
-      });
+    
     }
   }
 
-  void _addBreathingCircle(
-      String eventId, LatLng location, VoidCallback onComplete) {
-    if (mapController == null) return;
-    CircleOptions circleOptions = CircleOptions(
-      geometry: location,
-      circleRadius: 27.0,
-      circleOpacity: 0.3,
-      circleColor: pinColor,
-      circleStrokeWidth: 2,
-      circleStrokeColor: pinColor,
-    );
 
-    mapController?.addCircle(circleOptions).then((circle) {
-      eventCircles[eventId] = circle;
-      _animateCircle(circle);
-      onComplete(); // Callback to add symbol after circle
-    });
-  } */
 
   void _onCameraIdle() {
     setState(() {

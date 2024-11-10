@@ -541,6 +541,27 @@ class _FeedScreenState extends State<FeedScreen> {
                     return const Center(child: CircularProgressIndicator());
                   }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                   return ListView.builder(
                     controller: _scrollController,
                     itemCount:
@@ -549,11 +570,9 @@ class _FeedScreenState extends State<FeedScreen> {
                       if (index >= _posts.length) {
                         return Center(child: Container());
                       }
-
                       DocumentSnapshot<Map<String, dynamic>> post =
                           _posts[index]
                               as DocumentSnapshot<Map<String, dynamic>>;
-
                       bool shouldIncludePost = false;
                       if (selectedOption == 'global') {
                         shouldIncludePost = true;
@@ -572,7 +591,6 @@ class _FeedScreenState extends State<FeedScreen> {
                             selectedOption == 'visitArea' ? 0.7 : 0.7;
                         shouldIncludePost = distance <= distanceThreshold;
                       }
-
                       if (shouldIncludePost) {
                         return FutureBuilder<String>(
                           future: getPostTypeName(post.data()?['postType']),
@@ -585,12 +603,12 @@ class _FeedScreenState extends State<FeedScreen> {
                             } else if (snapshot.hasData) {
                               if (snapshot.data == 'updates') {
                                 return TextPostCard(
-                                  key: ValueKey(post.id), // Add unique key
+                                  key: ValueKey(post.id), 
                                   snap: post.data()!,
                                 );
                               } else {
                                 return PostCard(
-                                  key: ValueKey(post.id), // Add unique key
+                                  key: ValueKey(post.id),
                                   snap: post.data()!,
                                 );
                               }
@@ -604,6 +622,39 @@ class _FeedScreenState extends State<FeedScreen> {
                       }
                     },
                   );
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                 },
               ),
             )
