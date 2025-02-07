@@ -513,8 +513,12 @@ class _TextPostCardState extends State<TextPostCard>
                               color: Colors.white,
                             ),
                     ),
+
+                    
                   ),
                 ),
+
+
 
                 // Comment button
                 IconButton(
