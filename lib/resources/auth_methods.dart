@@ -19,6 +19,18 @@ class AuthMethods {
         return model.User.fromSnap(documentSnapshot);
       } else {
         // Retry logic or handle the case where the document is not found
+        // For example, you can retry fetching the document a few times before throwing an error
+        int retryCount = 0;
+        const int maxRetries = 3;
+        while (retryCount < maxRetries) {
+          documentSnapshot = await _firestore.collection('users').doc(currentUser.uid).get();
+          if (documentSnapshot.exists) {
+            return model.User.fromSnap(documentSnapshot);
+          }
+          retryCount++;
+          await Future.delayed(Duration(seconds: 2)); // wait for 2 seconds before retrying
+        }
+        throw Exception("User does not exist in Firestore after $maxRetries retries");
         throw Exception("User does not exist in Firestore");
       }
     } else {
@@ -39,10 +51,7 @@ class AuthMethods {
       if (email.isNotEmpty ||
           password.isNotEmpty ||
           phonenumber.isNotEmpty ||
-          username.isNotEmpty ||
-          // ignore: unnecessary_null_comparison
-          file != null) {
-        // Register user
+          username.isNotEmpty) {
         UserCredential credential = await _auth.createUserWithEmailAndPassword(
             email: email, password: password);
 
