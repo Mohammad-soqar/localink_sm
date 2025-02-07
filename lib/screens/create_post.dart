@@ -29,6 +29,10 @@ class PostPage extends StatefulWidget {
   _PostPageState createState() => _PostPageState();
 }
 
+
+
+
+
 class _PostPageState extends State<PostPage> {
   int _currentPage = 0; // Track the current page index
   final PageController _pageController =
