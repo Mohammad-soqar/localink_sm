@@ -37,6 +37,9 @@ class FeedScreen extends StatefulWidget {
     this.visitedAreaLocation,
   }) : super(key: key);
 
+
+  
+
   @override
   _FeedScreenState createState() => _FeedScreenState();
 }
@@ -540,28 +543,6 @@ class _FeedScreenState extends State<FeedScreen> {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
                   return ListView.builder(
                     controller: _scrollController,
                     itemCount:
@@ -622,39 +603,6 @@ class _FeedScreenState extends State<FeedScreen> {
                       }
                     },
                   );
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
                 },
               ),
             )
