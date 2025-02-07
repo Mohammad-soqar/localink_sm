@@ -196,7 +196,6 @@ exports.preprocessMediaUrls = functions.firestore
     });
 
 /**
- * Sends a notification and saves it to Firestore.
  * @param {Array<string>} tokens - The recipient tokens.
  * @param {string} title - The notification title.
  * @param {string} body - The notification body.
@@ -217,7 +216,6 @@ const sendNotification = (tokens, title, body, data, userId) => {
       .then((response) => {
         console.log("Successfully sent message:", response);
 
-        // Save notification to Firestore
         const notificationData = {
           title: title,
           body: body,
@@ -233,7 +231,6 @@ const sendNotification = (tokens, title, body, data, userId) => {
 };
 
 /**
- * Example function to send an event update notification.
  * @param {string} userId - The user ID.
  * @param {string} eventId - The event ID.
  * @param {string} eventName - The event name.
