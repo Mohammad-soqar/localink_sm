@@ -236,7 +236,10 @@ class FireStoreMethods {
     String postId,
     String postCreatorId,
     List<String>? contentTypes,
-  ) async {
+  ) 
+  
+  
+  async {
     String res = "Some error occurred";
     try {
       CollectionReference reactionsCollection =
