@@ -225,6 +225,7 @@ class _PostCardState extends State<PostCard>
     });
   } */
 
+
   Widget _buildImage(String mediaUrl) {
     return Container(
       height: MediaQuery.of(context).size.height * 0.45, // Size from MediaQuery
