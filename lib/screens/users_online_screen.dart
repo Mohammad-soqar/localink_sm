@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 class AdminDashboard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final databaseReference = FirebaseDatabase.instance.reference();
+    final databaseReference = FirebaseDatabase.instance.ref();
 
     return Scaffold(
       appBar: AppBar(

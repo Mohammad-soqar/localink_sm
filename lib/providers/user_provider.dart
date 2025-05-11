@@ -12,7 +12,7 @@ final databaseReference = FirebaseDatabase.instanceFor(
   app: Firebase.app(),
   databaseURL: 'https://localink-778c5-default-rtdb.europe-west1.firebasedatabase.app/', // Replace with your Realtime Database URL
 // ignore: deprecated_member_use
-).reference();
+).ref();
 
 
   User? get getUser => _user;
