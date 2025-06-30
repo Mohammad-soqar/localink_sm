@@ -6,13 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:localink_sm/utils/RestrictedAreasService.dart';
-
-class LatLng {
-  final double latitude;
-  final double longitude;
-
-  LatLng(this.latitude, this.longitude);
-}
+import 'package:localink_sm/models/lat_lng.dart';
 
 class MapPickerScreen extends StatefulWidget {
   final Function(LatLng) onLocationPicked;
