@@ -1,0 +1,2 @@
+const String mapboxAccessToken = 'sk.eyJ1IjoibW9oYW1tYWRzb3FhcjEwMSIsImEiOiJjbHUyM3Rwc2owc2p6MmtrMWg1eTNjb25oIn0.uP5k1FrxSDNNBjWo1LdSlg';
+const String mapboxDarkStyle = 'mapbox://styles/mapbox/dark-v11';
