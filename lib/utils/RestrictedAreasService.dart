@@ -1,6 +1,6 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:mapbox_gl/mapbox_gl.dart';
+import 'package:localink_sm/models/lat_lng.dart';
 
 class RestrictedAreasService {
   final String apiKey = 'AIzaSyAaRdWEmEijKLDStEKnJLjhRPT_Ok1XK4M';

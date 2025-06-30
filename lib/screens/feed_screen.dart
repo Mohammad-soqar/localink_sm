@@ -17,11 +17,10 @@ import 'package:localink_sm/utils/colors.dart';
 import 'package:localink_sm/utils/location_service.dart';
 import 'package:localink_sm/utils/location_utils.dart';
 import 'package:localink_sm/utils/service_locator.dart';
-import 'package:localink_sm/widgets/map-picker.dart';
 import 'package:localink_sm/widgets/new_map_picker.dart';
 import 'package:localink_sm/widgets/post_card.dart';
 import 'package:localink_sm/widgets/updates_card.dart';
-import 'package:mapbox_gl/mapbox_gl.dart';
+import 'package:localink_sm/models/lat_lng.dart';
 import 'package:provider/provider.dart';
 
 class FeedScreen extends StatefulWidget {
