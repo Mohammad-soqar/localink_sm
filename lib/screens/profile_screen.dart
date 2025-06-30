@@ -28,7 +28,6 @@ import 'package:localink_sm/utils/notifications_util.dart';
 import 'package:localink_sm/utils/utils.dart';
 import 'package:localink_sm/widgets/new_map_picker.dart';
 import 'package:localink_sm/widgets/updates_card.dart';
-import 'package:mapbox_gl/mapbox_gl.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';

@@ -14,7 +14,7 @@ import 'package:localink_sm/models/user.dart' as model;
 import 'package:localink_sm/providers/user_provider.dart';
 import 'package:localink_sm/utils/colors.dart';
 import 'package:localink_sm/widgets/new_map_picker.dart';
-import 'package:mapbox_gl/mapbox_gl.dart' as mapbox;
+import 'package:localink_sm/models/lat_lng.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
@@ -38,7 +38,7 @@ class _AddEventPageState extends State<AddEventPage> {
   final _radiusController = TextEditingController();
   final _attendenceController = TextEditingController();
   DateTime? _selectedDateTime;
-  mapbox.LatLng? _pickedLocation;
+  LatLng? _pickedLocation;
   Color _pinColor = highlightColor2;
   final String organizer = "ErrorWithGettingTheUserId";
   final List<XFile> _selectedImages = [];
@@ -219,7 +219,7 @@ class _AddEventPageState extends State<AddEventPage> {
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => MapPickerScreen(
-          onLocationPicked: (mapbox.LatLng location) {
+          onLocationPicked: (LatLng location) {
             setState(() {
               _pickedLocation = location;
             });

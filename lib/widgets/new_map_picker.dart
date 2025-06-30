@@ -6,13 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:localink_sm/utils/RestrictedAreasService.dart';
-
-class LatLng {
-  final double latitude;
-  final double longitude;
-
-  LatLng(this.latitude, this.longitude);
-}
+import 'package:localink_sm/models/lat_lng.dart';
+import 'package:localink_sm/utils/mapbox_constants.dart';
 
 class MapPickerScreen extends StatefulWidget {
   final Function(LatLng) onLocationPicked;
@@ -143,9 +138,9 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
       body: MapWidget(
         key: _mapKey,
         resourceOptions: ResourceOptions(
-          accessToken: "sk.eyJ1IjoibW9oYW1tYWRzb3FhcjEwMSIsImEiOiJjbHUyM3Rwc2owc2p6MmtrMWg1eTNjb25oIn0.uP5k1FrxSDNNBjWo1LdSlg",
+          accessToken: mapboxAccessToken,
         ),
-        styleUri: MapboxStyles.MAPBOX_DARK,
+        styleUri: mapboxDarkStyle,
         cameraOptions: CameraOptions(
           center: Point(
             coordinates: Position(
