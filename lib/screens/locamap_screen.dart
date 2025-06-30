@@ -8,6 +8,7 @@ import 'package:flutter_svg/svg.dart';
 import 'package:location/location.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:localink_sm/utils/mapbox_constants.dart';
+
 import 'package:localink_sm/screens/add_event.dart';
 import 'package:localink_sm/utils/colors.dart';
 import 'package:localink_sm/utils/location_service.dart';
@@ -69,6 +70,7 @@ class _LocaMapState extends State<LocaMap> {
 
     await _mapboxMap?.setCamera(CameraOptions(center: point, zoom: 14));
 
+
     final address = await LocationUtils.getAddressFromLatLng(
         locationData.latitude!, locationData.longitude!);
     setState(() {
@@ -101,6 +103,7 @@ class _LocaMapState extends State<LocaMap> {
           MapWidget(
             resourceOptions: ResourceOptions(accessToken: mapboxAccessToken),
             styleUri: mapboxDarkStyle,
+
             mapOptions:
                 MapOptions(pixelRatio: MediaQuery.of(context).devicePixelRatio),
             cameraOptions: const CameraOptions(

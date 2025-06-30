@@ -9,6 +9,7 @@ import 'package:localink_sm/utils/RestrictedAreasService.dart';
 import 'package:localink_sm/models/lat_lng.dart';
 import 'package:localink_sm/utils/mapbox_constants.dart';
 
+
 class MapPickerScreen extends StatefulWidget {
   final Function(LatLng) onLocationPicked;
 
