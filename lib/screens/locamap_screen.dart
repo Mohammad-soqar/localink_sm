@@ -101,12 +101,12 @@ class _LocaMapState extends State<LocaMap> {
       body: Stack(
         children: [
           MapWidget(
-            resourceOptions: ResourceOptions(accessToken: mapboxAccessToken),
+            /* resourceOptions: ResourceOptions(accessToken: mapboxAccessToken), */
             styleUri: mapboxDarkStyle,
 
             mapOptions:
                 MapOptions(pixelRatio: MediaQuery.of(context).devicePixelRatio),
-            cameraOptions: const CameraOptions(
+            cameraOptions:  CameraOptions(
               center: Point(coordinates: Position(28.99925, 40.99437)),
               zoom: 10,
             ),

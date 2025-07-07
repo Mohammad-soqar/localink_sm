@@ -47,7 +47,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
       await _circleManager.create(CircleAnnotationOptions(
         geometry: Point(coordinates: Position(area.longitude, area.latitude)),
         circleRadius: 8,
-        circleColor: "#116640",
+        circleColor: 0xFF116640,
         circleOpacity: 0.5,
       ));
     }
@@ -138,9 +138,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
       ),
       body: MapWidget(
         key: _mapKey,
-        resourceOptions: ResourceOptions(
-          accessToken: mapboxAccessToken,
-        ),
+      
         styleUri: mapboxDarkStyle,
         cameraOptions: CameraOptions(
           center: Point(
@@ -153,7 +151,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
         ),
         mapOptions: MapOptions(pixelRatio: MediaQuery.of(context).devicePixelRatio),
         onMapCreated: _onMapCreated,
-        onTapListener: _onMapTap,
+     //accessToken: mapboxAccessToken,
       ),
     );
   }
