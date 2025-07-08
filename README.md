@@ -62,5 +62,5 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 ## Contact
 For inquiries or feedback:
-- **Email**: [mnsoqar1@gmail.com]
-- **Project Link**: [https://github.com/Mohammad-soqar/localink_sm]
+- **Email**: [mnsoqar1@gmail.com](mailto:mnsoqar1@gmail.com)
+- **Project Link**: <https://github.com/Mohammad-soqar/localink_sm>

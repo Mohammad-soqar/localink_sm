@@ -204,10 +204,14 @@ class _HomeState extends State<Home> with WidgetsBindingObserver{
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: referencePhoto == null
-                            ? const Icon(Icons.add_a_photo,
-                    p            color:
-                                    secondaryColor) // Adjusted for visibility
-                            : Image.memory(referencePhoto!, fit: BoxFit.cover),
+                            ? const Icon(
+                                Icons.add_a_photo,
+                                color: secondaryColor,
+                              ) // Adjusted for visibility
+                            : Image.memory(
+                                referencePhoto!,
+                                fit: BoxFit.cover,
+                              ),
                       ),
                     ),
                   ],
