@@ -1,19 +1,17 @@
 import 'dart:async';
 import 'dart:math';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
-import 'package:localink_sm/utils/RestrictedAreasService.dart';
 import 'package:localink_sm/models/lat_lng.dart';
+import 'package:localink_sm/utils/RestrictedAreasService.dart';
 import 'package:localink_sm/utils/mapbox_constants.dart';
-
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 
 class MapPickerScreen extends StatefulWidget {
   final Function(LatLng) onLocationPicked;
 
-  const MapPickerScreen({Key? key, required this.onLocationPicked}) : super(key: key);
+  const MapPickerScreen({super.key, required this.onLocationPicked});
 
   @override
   State<MapPickerScreen> createState() => _MapPickerScreenState();
@@ -42,12 +40,10 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
   }
 
   Future<void> _addRestrictedAreas() async {
-    if (_circleManager == null) return;
     for (var area in _restrictedAreas) {
       await _circleManager.create(CircleAnnotationOptions(
         geometry: Point(coordinates: Position(area.longitude, area.latitude)),
         circleRadius: 8,
-        circleColor: "#116640",
         circleOpacity: 0.5,
       ));
     }
@@ -56,7 +52,8 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
   Future<void> _onMapCreated(MapboxMap mapboxMap) async {
     _mapboxMap = mapboxMap;
 
-    _circleManager = await _mapboxMap.annotations.createCircleAnnotationManager();
+    _circleManager =
+        await _mapboxMap.annotations.createCircleAnnotationManager();
     _pointManager = await _mapboxMap.annotations.createPointAnnotationManager();
 
     await _addRestrictedAreas();
@@ -68,7 +65,8 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
 
   Future<void> _moveCameraTo(LatLng location) async {
     await _mapboxMap.setCamera(CameraOptions(
-      center: Point(coordinates: Position(location.longitude, location.latitude)),
+      center:
+          Point(coordinates: Position(location.longitude, location.latitude)),
       zoom: 14,
     ));
   }
@@ -76,7 +74,8 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
   Future<void> _addSymbolAt(LatLng location) async {
     await _pointManager.deleteAll();
     await _pointManager.create(PointAnnotationOptions(
-      geometry: Point(coordinates: Position(location.longitude, location.latitude)),
+      geometry:
+          Point(coordinates: Position(location.longitude, location.latitude)),
       image: await _loadImageFromAsset("assets/icons/mapPin2.png"),
       iconSize: 1.5,
     ));
@@ -87,10 +86,19 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     return byteData.buffer.asUint8List();
   }
 
-  void _onMapTap(ScreenCoordinate _, LatLng latLng) async {
+  void _onMapTap(MapContentGestureContext gestureContext) async {
+    // gestureContext.touchPosition is the screen coordinate
+    // gestureContext.point.coordinates is a Position: so lng/lat
+    final pos = gestureContext.point.coordinates;
+    final latLng = LatLng(pos.lat.toDouble(), pos.lng.toDouble());
+
     if (_isRestrictedArea(latLng)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cannot add events in restricted areas')),
+        SnackBar(
+          content:
+              Text('This area is restricted. Please choose another location.'),
+          duration: const Duration(seconds: 2),
+        ),
       );
       return;
     }
@@ -113,7 +121,8 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
         c((p2.latitude - p1.latitude) * p) / 2 +
         c(p1.latitude * p) *
             c(p2.latitude * p) *
-            (1 - c((p2.longitude - p1.longitude) * p)) / 2;
+            (1 - c((p2.longitude - p1.longitude) * p)) /
+            2;
     return 12742 * asin(sqrt(a));
   }
 
@@ -138,9 +147,6 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
       ),
       body: MapWidget(
         key: _mapKey,
-        resourceOptions: ResourceOptions(
-          accessToken: mapboxAccessToken,
-        ),
         styleUri: mapboxDarkStyle,
         cameraOptions: CameraOptions(
           center: Point(
@@ -151,7 +157,8 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
           ),
           zoom: 10.0,
         ),
-        mapOptions: MapOptions(pixelRatio: MediaQuery.of(context).devicePixelRatio),
+        mapOptions:
+            MapOptions(pixelRatio: MediaQuery.of(context).devicePixelRatio),
         onMapCreated: _onMapCreated,
         onTapListener: _onMapTap,
       ),

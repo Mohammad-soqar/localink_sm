@@ -523,7 +523,7 @@ class _AddEventPageState extends State<AddEventPage> {
                   const SizedBox(width: 10),
                   Row(
                     children: [
-                      Text(' ${_pinColor.toHexStringRGB()}'), 
+                      Text(' ${colorToHex(_pinColor)}'), 
                       const SizedBox(width: 10),
                       Container(
                         width: 24,

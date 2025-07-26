@@ -795,20 +795,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                                                   }
 
                                                   // Send notification to the followed user
-                                                  HttpsCallable callable =
-                                                      FirebaseFunctions.instance
-                                                          .httpsCallable(
-                                                              'sendNFollowerNotification');
-                                                  await callable.call({
-                                                    'userId': userData[
-                                                        'uid'], // The ID of the user being followed
-                                                    'followerId': FirebaseAuth
-                                                        .instance
-                                                        .currentUser!
-                                                        .uid, // The ID of the follower
-                                                    'followerName':
-                                                        followerName, // The name of the follower
-                                                  });
+                                                
 
                                                   setState(() {
                                                     isFollowing = true;

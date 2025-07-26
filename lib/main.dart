@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -7,17 +8,19 @@ import 'package:flutter/material.dart';
 import 'package:localink_sm/models/report.dart';
 import 'package:localink_sm/providers/user_provider.dart';
 import 'package:localink_sm/resources/storage_methods.dart';
-import 'package:localink_sm/screens/login_screen.dart';
-import 'package:localink_sm/services/visiting_status.dart';
-import 'package:localink_sm/utils/service_locator.dart';
-import 'package:provider/provider.dart';
-import 'package:uuid/uuid.dart';
-import 'firebase_options.dart';
 import 'package:localink_sm/responsive/mobile_screen_layout.dart';
 import 'package:localink_sm/responsive/responsive_layout_screen.dart';
 import 'package:localink_sm/responsive/web_screen_layout.dart';
+import 'package:localink_sm/screens/login_screen.dart';
+import 'package:localink_sm/services/visiting_status.dart';
 import 'package:localink_sm/utils/colors.dart';
+import 'package:localink_sm/utils/mapbox_constants.dart';
+import 'package:localink_sm/utils/service_locator.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
+import 'package:provider/provider.dart';
+import 'package:uuid/uuid.dart';
 
+import 'firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,8 +29,8 @@ Future<void> main() async {
   );
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-  setupLocator();  // Set up the location service
-
+  setupLocator(); // Set up the location service
+  MapboxOptions.setAccessToken(mapboxAccessToken);
   runApp(const MyApp());
 }
 
@@ -66,13 +69,12 @@ class Home extends StatefulWidget {
   _HomeState createState() => _HomeState();
 }
 
-class _HomeState extends State<Home> with WidgetsBindingObserver{
+class _HomeState extends State<Home> with WidgetsBindingObserver {
   double shakeThresholdGravity = 16.7;
   int shakeSlopTimeMS = 3500;
   int shakeCountResetTime = 3000;
   Uint8List? referencePhoto;
-    final VisitingStatus visitingStatus = VisitingStatus();
-
+  final VisitingStatus visitingStatus = VisitingStatus();
 
   int mShakeTimestamp = DateTime.now().millisecondsSinceEpoch;
   int shakeCount = 0;
@@ -118,7 +120,7 @@ class _HomeState extends State<Home> with WidgetsBindingObserver{
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-   /*  SensorsPlatform.instance.accelerometerEvents
+    /*  SensorsPlatform.instance.accelerometerEvents
         .listen((AccelerometerEvent event) {
       var x = event.x;
       var y = event.y;

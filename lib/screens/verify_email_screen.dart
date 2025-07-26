@@ -3,11 +3,9 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
-import 'package:localink_sm/models/user.dart' as model;
 import 'package:localink_sm/responsive/mobile_screen_layout.dart';
 import 'package:localink_sm/responsive/responsive_layout_screen.dart';
 import 'package:localink_sm/responsive/web_screen_layout.dart';
-import 'package:localink_sm/screens/add_post_screen.dart';
 import 'package:localink_sm/utils/colors.dart';
 
 class VerifyEmailScreen extends StatefulWidget {
@@ -21,22 +19,22 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
   bool _isButtonDisabled = true;
   bool _isButtonPressed = false;
   int _remainingTime = 60;
-  bool _isNextButtonEnabled = false;
+  final bool _isNextButtonEnabled = false;
   bool _isEmailVerified = false;
   Timer? timer;
-
 
   @override
   void initState() {
     super.initState();
     _isEmailVerified = FirebaseAuth.instance.currentUser!.emailVerified;
 
-    if(!_isEmailVerified){
+    if (!_isEmailVerified) {
       sendVerificationEmail();
 
       timer = Timer.periodic(
         Duration(seconds: 3),
-         (_) => checkEmailVerified(),);
+        (_) => checkEmailVerified(),
+      );
     }
     startTimer();
   }
@@ -47,16 +45,15 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
     super.dispose();
   }
 
-  Future checkEmailVerified() async{
+  Future checkEmailVerified() async {
     await FirebaseAuth.instance.currentUser!.reload();
 
     setState(() {
       _isEmailVerified = FirebaseAuth.instance.currentUser!.emailVerified;
     });
 
-    if(_isEmailVerified) timer?.cancel();
+    if (_isEmailVerified) timer?.cancel();
   }
-
 
   void startTimer() {
     // Start a countdown timer to update remaining time every second
@@ -128,86 +125,85 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
   }
 
   @override
-  Widget build(BuildContext context)=> _isEmailVerified? const ResponsiveLayout(
+  Widget build(BuildContext context) => _isEmailVerified
+      ? const ResponsiveLayout(
           mobileScreenLayout: MobileScreenLayout(),
           webScreenLayout: WebScreenLayout(),
-        ): 
-     Scaffold(
-      appBar: AppBar(
-        backgroundColor: darkBackgroundColor,
-        title: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              margin:
-                  EdgeInsets.only(top: 30.0), // Adjust the top margin as needed
-              child: SvgPicture.asset(
-                'assets/logo-with-name-H.svg',
-                height: 20,
-              ),
-            ),
-          ],
-        ),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(30.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Center(
-                child: SvgPicture.asset(
-              'assets/icons/email.svg',
-              width: 150,
-              height: 150,
-            )),
-            const SizedBox(
-              height: 20,
-            ),
-            const Text(
-              'Email Verification',
-              style: TextStyle(
-                fontSize: 28,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(
-              height: 30,
-            ),
-            const Text(
-              'an email with verification link have been sent to you!',
-              style: TextStyle(fontSize: 20),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(
-              height: 60,
-            ),
-           
-            
-            Container(
-              margin: EdgeInsets.symmetric(horizontal: 24),
-              child: ElevatedButton(
-                onPressed: _isButtonDisabled ? null : sendVerificationEmail,
-                style: ElevatedButton.styleFrom(
-                  foregroundColor: highlightColor, backgroundColor: primaryColor,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20)),
-                  padding: EdgeInsets.symmetric(vertical: 6),
+        )
+      : Scaffold(
+          appBar: AppBar(
+            backgroundColor: darkBackgroundColor,
+            title: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  margin: EdgeInsets.only(
+                      top: 30.0), // Adjust the top margin as needed
+                  child: SvgPicture.asset(
+                    'assets/logo-with-name-H.svg',
+                    height: 20,
+                  ),
                 ),
-                child: const Text(
-                  'Send Again',
-                  style: TextStyle(fontSize: 28),
+              ],
+            ),
+          ),
+          body: Padding(
+            padding: const EdgeInsets.all(30.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                    child: SvgPicture.asset(
+                  'assets/icons/email.svg',
+                  width: 150,
+                  height: 150,
+                )),
+                const SizedBox(
+                  height: 20,
                 ),
-              ),
+                const Text(
+                  'Email Verification',
+                  style: TextStyle(
+                    fontSize: 28,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(
+                  height: 30,
+                ),
+                const Text(
+                  'an email with verification link have been sent to you!',
+                  style: TextStyle(fontSize: 20),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(
+                  height: 60,
+                ),
+                Container(
+                  margin: EdgeInsets.symmetric(horizontal: 24),
+                  child: ElevatedButton(
+                    onPressed: _isButtonDisabled ? null : sendVerificationEmail,
+                    style: ElevatedButton.styleFrom(
+                      foregroundColor: highlightColor,
+                      backgroundColor: primaryColor,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20)),
+                      padding: EdgeInsets.symmetric(vertical: 6),
+                    ),
+                    child: const Text(
+                      'Send Again',
+                      style: TextStyle(fontSize: 28),
+                    ),
+                  ),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  '$_remainingTime seconds remaining',
+                  style: TextStyle(fontSize: 16),
+                ),
+              ],
             ),
-            SizedBox(height: 8),
-            Text(
-              '$_remainingTime seconds remaining',
-              style: TextStyle(fontSize: 16),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
+          ),
+        );
+}

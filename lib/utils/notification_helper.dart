@@ -1,10 +1,13 @@
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+
 import '../constants.dart';
 
 class NotificationHelper {
-  static void showNotification(RemoteMessage message, FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin) {
-    const AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
+  static void showNotification(RemoteMessage message,
+      FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin) {
+    const AndroidNotificationDetails androidPlatformChannelSpecifics =
+        AndroidNotificationDetails(
       NotificationConstants.channelId,
       NotificationConstants.channelName,
       channelDescription: NotificationConstants.channelDescription,
